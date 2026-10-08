@@ -2,128 +2,260 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Smart Lock Remote</title>
+  <title>TULSI Smart Lock</title>
+  <!-- MQTT Library for ESP32 Control -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+  
   <style>
-    body { font-family: -apple-system, sans-serif; background: #0f172a; color: white; text-align: center; padding: 40px 20px; }
-    .card { background: #1e293b; padding: 30px; border-radius: 20px; max-width: 360px; margin: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+    body { font-family: -apple-system, sans-serif; background: #0f172a; color: white; text-align: center; padding: 20px; }
+    .card { background: #1e293b; padding: 30px; border-radius: 20px; max-width: 360px; margin: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.5); display: none; }
+    .active { display: block; }
+    
+    h1 { margin-top: 0; color: #facc15; font-size: 28px; letter-spacing: 2px;}
+    input { width: 90%; padding: 15px; font-size: 18px; text-align: center; border-radius: 10px; border: none; margin-bottom: 20px; }
     
     .btn { display: block; width: 100%; padding: 18px; font-size: 18px; font-weight: bold; border-radius: 12px; border: none; cursor: pointer; margin-bottom: 15px; transition: 0.3s;}
     .btn:active { transform: scale(0.95); }
     
+    .btn-submit { background: #3b82f6; color: white; }
     .btn-unlock { background: #22c55e; color: white; }
     .btn-lock { background: #ef4444; color: white; }
-    .btn-admin-off { background: #f97316; color: white; }
-    .btn-admin-on { background: #3b82f6; color: white; }
-    .btn-logout { background: #64748b; color: white; margin-top: 30px;}
+    .btn-logout { background: #64748b; color: white; margin-top: 20px;}
     
-    input[type="password"] { width: 90%; padding: 15px; font-size: 24px; text-align: center; border-radius: 10px; border: none; margin-bottom: 20px; }
-    
-    #status, #admin-status { font-size: 20px; font-weight: bold; margin-bottom: 25px; }
-    .conn-status { color: #94a3b8; font-size: 12px; margin-top: 20px; }
+    /* Admin UI */
+    .request-box { background: #334155; padding: 15px; border-radius: 10px; margin-bottom: 15px; text-align: left; }
+    .request-box h3 { margin: 0 0 10px 0; color: white; font-size: 18px; }
+    .btn-small { padding: 10px; border-radius: 8px; border: none; color: white; font-weight: bold; margin-right: 5px; cursor: pointer;}
+    .btn-perm { background: #22c55e; }
+    .btn-temp { background: #f59e0b; }
+    .btn-deny { background: #ef4444; }
 
-    /* Hide sections by default */
-    #user-screen, #admin-screen { display: none; }
+    #door-status { font-size: 22px; font-weight: bold; margin-bottom: 25px; color: #94a3b8;}
   </style>
 </head>
 <body>
 
-  <!-- LOGIN SCREEN -->
-  <div id="login-screen" class="card">
-    <h2>Enter PIN</h2>
-    <input type="password" id="pin-input" placeholder="****" />
-    <button class="btn btn-lock" onclick="checkPin()">Login</button>
-    <div id="conn-status-1" class="conn-status">Connecting to Cloud...</div>
+  <!-- SCREEN 1: ENTER HOUSE CODE -->
+  <div id="screen-join" class="card active">
+    <h2>Join a Home</h2>
+    <p style="color: #94a3b8;">Enter House Invite Code or Admin PIN</p>
+    <input type="number" id="invite-code" placeholder="Enter Code (Try 7788)" />
+    <button class="btn btn-submit" onclick="checkInviteCode()">Next</button>
   </div>
 
-  <!-- USER SCREEN -->
-  <div id="user-screen" class="card">
-    <h2>Remote Lock</h2>
-    <div id="status" style="color: #facc15;">STATUS: Unknown</div>
-    <button class="btn btn-unlock" onclick="sendCommand('UNLOCK')">Tap to Unlock</button>
-    <button class="btn btn-lock" onclick="sendCommand('LOCK')">Tap to Lock</button>
-    <button class="btn btn-logout" onclick="logout()">Logout</button>
+  <!-- SCREEN 2: REQUEST ACCESS (Shows TULSI) -->
+  <div id="screen-request" class="card">
+    <h1>TULSI</h1>
+    <p>House found! Please enter your name to request access.</p>
+    <input type="text" id="user-name" placeholder="Your Name" />
+    <button class="btn btn-submit" onclick="submitRequest()">Send Request to Admin</button>
   </div>
 
-  <!-- ADMIN SCREEN -->
-  <div id="admin-screen" class="card" style="border: 2px solid #f97316;">
-    <h2 style="color: #f97316;">Admin Panel</h2>
-    <div id="admin-status" style="color: #facc15;">Web Access: Unknown</div>
-    <button class="btn btn-admin-off" onclick="sendCommand('ADMIN_DISABLE_WEB')">LOCKDOWN (Disable Web)</button>
-    <button class="btn btn-admin-on" onclick="sendCommand('ADMIN_ENABLE_WEB')">Restore Web Access</button>
-    <button class="btn btn-logout" onclick="logout()">Logout</button>
+  <!-- SCREEN 3: WAITING FOR ADMIN -->
+  <div id="screen-pending" class="card">
+    <h1>TULSI</h1>
+    <div style="font-size: 50px; margin: 20px 0;">⏳</div>
+    <h3>Request Sent!</h3>
+    <p style="color: #94a3b8;">Waiting for Admin to approve your device...</p>
+    <p style="font-size: 12px; color: #ef4444;">(Leave this page open, it will auto-update!)</p>
   </div>
 
-  <script>
-    var broker = "broker.hivemq.com";
-    var port = 8884; 
+  <!-- SCREEN 4: APPROVED! MAIN CONTROL -->
+  <div id="screen-control" class="card">
+    <h1>TULSI</h1>
+    <div id="door-status">DOOR: Checking...</div>
+    <div id="access-type" style="color: #f59e0b; margin-bottom: 20px; font-size: 14px;"></div>
     
-    var topic_command = "my_awesome_room/door_lock/command";
-    var topic_state = "my_awesome_room/door_lock/state";
-    var topic_admin = "my_awesome_room/door_lock/admin_state"; // NEW
-    
-    var clientId = "WebApp-" + Math.floor(Math.random() * 10000);
-    var client = new Paho.MQTT.Client(broker, port, clientId);
+    <button id="btnUnlock" class="btn btn-unlock" onclick="sendMQTT('UNLOCK')" disabled>Tap to Unlock</button>
+    <button id="btnLock" class="btn btn-lock" onclick="sendMQTT('LOCK')" disabled>Tap to Lock</button>
+  </div>
 
-    client.onConnectionLost = function(responseObject) {
-      document.getElementById("conn-status-1").innerText = "Disconnected. Refresh.";
+  <!-- SCREEN 5: ADMIN DASHBOARD -->
+  <div id="screen-admin" class="card" style="border: 2px solid #3b82f6; max-width: 400px;">
+    <h2 style="color: #3b82f6;">Admin Dashboard</h2>
+    <p>Pending Requests for TULSI:</p>
+    <div id="admin-list">
+      <!-- Requests load here -->
+    </div>
+    <button class="btn btn-logout" onclick="window.location.reload()">Exit Admin</button>
+  </div>
+
+  <!-- FIREBASE INTEGRATION (Module) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+    import { getFirestore, doc, setDoc, onSnapshot, collection, query, where, getDocs, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+    // YOUR FIREBASE KEYS
+    const firebaseConfig = {
+      apiKey: "AIzaSyAI-R4T37B6RblVRkbShxnlteG1DRXiArk",
+      authDomain: "smartlock-tulsi.firebaseapp.com",
+      projectId: "smartlock-tulsi",
+      storageBucket: "smartlock-tulsi.firebasestorage.app",
+      messagingSenderId: "676526606981",
+      appId: "1:676526606981:web:e7e4fe714e771ee90177ec"
     };
 
-    client.onMessageArrived = function(message) {
-      var payload = message.payloadString;
-      
-      // If it's a normal door lock update
-      if (message.destinationName === topic_state) {
-        document.getElementById("status").innerText = "STATUS: " + payload;
-        document.getElementById("status").style.color = (payload === "LOCKED") ? "#ef4444" : "#22c55e";
-      }
-      
-      // If it's an admin lockdown update
-      if (message.destinationName === topic_admin) {
-        if (payload === "WEB_DISABLED") {
-          document.getElementById("admin-status").innerText = "Web Access: DISABLED (Lockdown ON)";
-          document.getElementById("admin-status").style.color = "#ef4444";
-        } else {
-          document.getElementById("admin-status").innerText = "Web Access: ENABLED (Normal)";
-          document.getElementById("admin-status").style.color = "#22c55e";
-        }
-      }
-    };
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
 
-    client.connect({
-       useSSL: true,
-      onSuccess: function() {
-        document.getElementById("conn-status-1").innerText = "Connected to Cloud! Ready for PIN.";
-        client.subscribe(topic_state);
-        client.subscribe(topic_admin); // Listen to admin channel too
-      }
-    });
+    // Get or Create a unique Device ID for this phone
+    let deviceId = localStorage.getItem('tulsi_device_id');
+    if (!deviceId) {
+      deviceId = "DEV_" + Math.floor(Math.random() * 1000000);
+      localStorage.setItem('tulsi_device_id', deviceId);
+    }
+    const deviceName = navigator.userAgent.includes("iPhone") ? "iPhone" : (navigator.userAgent.includes("Android") ? "Android Phone" : "Computer");
 
-    function sendCommand(cmd) {
-      var message = new Paho.MQTT.Message(cmd);
-      message.destinationName = topic_command;
-      client.send(message);
+    // UI Helper
+    function showScreen(screenId) {
+      document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
+      document.getElementById(screenId).classList.add('active');
     }
 
-    // --- SCREEN NAVIGATION LOGIC ---
-    function checkPin() {
-      var pin = document.getElementById("pin-input").value;
-      if (pin === "104104") {
-        document.getElementById("login-screen").style.display = "none";
-        document.getElementById("user-screen").style.display = "block";
-      } else if (pin === "112233") {
-        document.getElementById("login-screen").style.display = "none";
-        document.getElementById("admin-screen").style.display = "block";
+    // Step 1: Check Invite Code
+    window.checkInviteCode = function() {
+      const code = document.getElementById('invite-code').value;
+      if (code === "112233") {
+        loadAdminDashboard();
+      } else if (code === "7788") {
+        showScreen('screen-request');
       } else {
-        alert("Incorrect PIN!");
+        alert("Invalid Code!");
       }
-      document.getElementById("pin-input").value = ""; // clear input
+    };
+
+    // Step 2: Submit Request to Admin
+    window.submitRequest = async function() {
+      const name = document.getElementById('user-name').value;
+      if (!name) return alert("Enter your name!");
+      
+      await setDoc(doc(db, "requests", deviceId), {
+        name: name,
+        device: deviceName,
+        status: "pending", // pending, perm, or temp
+        expiresAt: 0
+      });
+      listenToMyStatus();
+    };
+
+    // Step 3: Listen to Database for Admin Approval (Realtime)
+    function listenToMyStatus() {
+      onSnapshot(doc(db, "requests", deviceId), (docSnap) => {
+        if (!docSnap.exists()) {
+          showScreen('screen-join');
+          return;
+        }
+        
+        const data = docSnap.data();
+        if (data.status === "pending") {
+          showScreen('screen-pending');
+        } 
+        else if (data.status === "perm" || data.status === "temp") {
+          // Check if temp expired
+          if (data.status === "temp" && Date.now() > data.expiresAt) {
+            alert("Your temporary access has expired!");
+            showScreen('screen-join');
+            return;
+          }
+          
+          showScreen('screen-control');
+          if(data.status === "temp") document.getElementById("access-type").innerText = "Temporary Guest Access";
+          else document.getElementById("access-type").innerText = "Permanent Resident Access";
+          
+          connectMQTT(); // Boot up the hardware connection!
+        }
+      });
     }
 
-    function logout() {
-      document.getElementById("user-screen").style.display = "none";
-      document.getElementById("admin-screen").style.display = "none";
-      document.getElementById("login-screen").style.display = "block";
+    // Start by checking if we already have a pending/approved request
+    listenToMyStatus();
+
+    // ==========================================
+    // ADMIN DASHBOARD LOGIC
+    // ==========================================
+    window.loadAdminDashboard = function() {
+      showScreen('screen-admin');
+      
+      // Listen for all pending requests
+      const q = query(collection(db, "requests"), where("status", "==", "pending"));
+      onSnapshot(q, (querySnapshot) => {
+        const list = document.getElementById("admin-list");
+        list.innerHTML = "";
+        
+        if (querySnapshot.empty) {
+          list.innerHTML = "<p style='color:#94a3b8;'>No pending requests right now.</p>";
+          return;
+        }
+
+        querySnapshot.forEach((docSnap) => {
+          const req = docSnap.data();
+          const reqId = docSnap.id;
+          
+          list.innerHTML += `
+            <div class="request-box">
+              <h3>👤 ${req.name}</h3>
+              <p style="margin: 0 0 10px 0; font-size: 12px; color: #94a3b8;">📱 ${req.device}</p>
+              <button class="btn-small btn-perm" onclick="approveReq('${reqId}', 'perm')">Perm Access</button>
+              <button class="btn-small btn-temp" onclick="approveReq('${reqId}', 'temp')">Temp (2hr)</button>
+              <button class="btn-small btn-deny" onclick="denyReq('${reqId}')">Deny</button>
+            </div>
+          `;
+        });
+      });
+    };
+
+    window.approveReq = async function(id, type) {
+      let expires = 0;
+      if (type === "temp") expires = Date.now() + (2 * 60 * 60 * 1000); // 2 hours from now
+      await updateDoc(doc(db, "requests", id), { status: type, expiresAt: expires });
+    };
+
+    window.denyReq = async function(id) {
+      await deleteDoc(doc(db, "requests", id));
+    };
+
+  </script>
+
+  <!-- ========================================== -->
+  <!-- HARDWARE CONNECTION (MQTT to ESP32)        -->
+  <!-- ========================================== -->
+  <script>
+    var mqttClient;
+    
+    function connectMQTT() {
+      if (mqttClient) return; // Already connected
+      
+      var broker = "broker.hivemq.com";
+      var port = 8884; 
+      var topic_command = "my_awesome_room/door_lock/command";
+      var topic_state = "my_awesome_room/door_lock/state";
+      
+      mqttClient = new Paho.MQTT.Client(broker, port, "WebApp-" + Math.floor(Math.random() * 10000));
+
+      mqttClient.onMessageArrived = function(message) {
+        if (message.destinationName === topic_state) {
+          var state = message.payloadString;
+          document.getElementById("door-status").innerText = "DOOR: " + state;
+          document.getElementById("door-status").style.color = (state === "LOCKED") ? "#ef4444" : "#22c55e";
+        }
+      };
+
+      mqttClient.connect({
+        useSSL: true,
+        onSuccess: function() {
+          document.getElementById("door-status").innerText = "DOOR: Connected!";
+          document.getElementById("btnUnlock").disabled = false;
+          document.getElementById("btnLock").disabled = false;
+          mqttClient.subscribe(topic_state);
+        }
+      });
+    }
+
+    window.sendMQTT = function(cmd) {
+      if(!mqttClient) return;
+      var message = new Paho.MQTT.Message(cmd);
+      message.destinationName = "my_awesome_room/door_lock/command";
+      mqttClient.send(message);
     }
   </script>
 

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Smart Lock Remote</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+  <style>
+    body { font-family: -apple-system, sans-serif; background: #0f172a; color: white; text-align: center; padding: 40px 20px; }
+    .card { background: #1e293b; padding: 30px; border-radius: 20px; max-width: 360px; margin: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+    
+    .btn { display: block; width: 100%; padding: 18px; font-size: 18px; font-weight: bold; border-radius: 12px; border: none; cursor: pointer; margin-bottom: 15px; transition: 0.3s;}
+    .btn:active { transform: scale(0.95); }
+    
+    .btn-unlock { background: #22c55e; color: white; }
+    .btn-lock { background: #ef4444; color: white; }
+    .btn-admin-off { background: #f97316; color: white; }
+    .btn-admin-on { background: #3b82f6; color: white; }
+    .btn-logout { background: #64748b; color: white; margin-top: 30px;}
+    
+    input[type="password"] { width: 90%; padding: 15px; font-size: 24px; text-align: center; border-radius: 10px; border: none; margin-bottom: 20px; }
+    
+    #status, #admin-status { font-size: 20px; font-weight: bold; margin-bottom: 25px; }
+    .conn-status { color: #94a3b8; font-size: 12px; margin-top: 20px; }
+
+    /* Hide sections by default */
+    #user-screen, #admin-screen { display: none; }
+  </style>
+</head>
+<body>
+
+  <!-- LOGIN SCREEN -->
+  <div id="login-screen" class="card">
+    <h2>Enter PIN</h2>
+    <input type="password" id="pin-input" placeholder="****" />
+    <button class="btn btn-lock" onclick="checkPin()">Login</button>
+    <div id="conn-status-1" class="conn-status">Connecting to Cloud...</div>
+  </div>
+
+  <!-- USER SCREEN -->
+  <div id="user-screen" class="card">
+    <h2>Remote Lock</h2>
+    <div id="status" style="color: #facc15;">STATUS: Unknown</div>
+    <button class="btn btn-unlock" onclick="sendCommand('UNLOCK')">Tap to Unlock</button>
+    <button class="btn btn-lock" onclick="sendCommand('LOCK')">Tap to Lock</button>
+    <button class="btn btn-logout" onclick="logout()">Logout</button>
+  </div>
+
+  <!-- ADMIN SCREEN -->
+  <div id="admin-screen" class="card" style="border: 2px solid #f97316;">
+    <h2 style="color: #f97316;">Admin Panel</h2>
+    <div id="admin-status" style="color: #facc15;">Web Access: Unknown</div>
+    <button class="btn btn-admin-off" onclick="sendCommand('ADMIN_DISABLE_WEB')">LOCKDOWN (Disable Web)</button>
+    <button class="btn btn-admin-on" onclick="sendCommand('ADMIN_ENABLE_WEB')">Restore Web Access</button>
+    <button class="btn btn-logout" onclick="logout()">Logout</button>
+  </div>
+
+  <script>
+    var broker = "broker.hivemq.com";
+    var port = 8000; 
+    
+    var topic_command = "my_awesome_room/door_lock/command";
+    var topic_state = "my_awesome_room/door_lock/state";
+    var topic_admin = "my_awesome_room/door_lock/admin_state"; // NEW
+    
+    var clientId = "WebApp-" + Math.floor(Math.random() * 10000);
+    var client = new Paho.MQTT.Client(broker, port, clientId);
+
+    client.onConnectionLost = function(responseObject) {
+      document.getElementById("conn-status-1").innerText = "Disconnected. Refresh.";
+    };
+
+    client.onMessageArrived = function(message) {
+      var payload = message.payloadString;
+      
+      // If it's a normal door lock update
+      if (message.destinationName === topic_state) {
+        document.getElementById("status").innerText = "STATUS: " + payload;
+        document.getElementById("status").style.color = (payload === "LOCKED") ? "#ef4444" : "#22c55e";
+      }
+      
+      // If it's an admin lockdown update
+      if (message.destinationName === topic_admin) {
+        if (payload === "WEB_DISABLED") {
+          document.getElementById("admin-status").innerText = "Web Access: DISABLED (Lockdown ON)";
+          document.getElementById("admin-status").style.color = "#ef4444";
+        } else {
+          document.getElementById("admin-status").innerText = "Web Access: ENABLED (Normal)";
+          document.getElementById("admin-status").style.color = "#22c55e";
+        }
+      }
+    };
+
+    client.connect({
+      onSuccess: function() {
+        document.getElementById("conn-status-1").innerText = "Connected to Cloud! Ready for PIN.";
+        client.subscribe(topic_state);
+        client.subscribe(topic_admin); // Listen to admin channel too
+      }
+    });
+
+    function sendCommand(cmd) {
+      var message = new Paho.MQTT.Message(cmd);
+      message.destinationName = topic_command;
+      client.send(message);
+    }
+
+    // --- SCREEN NAVIGATION LOGIC ---
+    function checkPin() {
+      var pin = document.getElementById("pin-input").value;
+      if (pin === "104104") {
+        document.getElementById("login-screen").style.display = "none";
+        document.getElementById("user-screen").style.display = "block";
+      } else if (pin === "112233") {
+        document.getElementById("login-screen").style.display = "none";
+        document.getElementById("admin-screen").style.display = "block";
+      } else {
+        alert("Incorrect PIN!");
+      }
+      document.getElementById("pin-input").value = ""; // clear input
+    }
+
+    function logout() {
+      document.getElementById("user-screen").style.display = "none";
+      document.getElementById("admin-screen").style.display = "none";
+      document.getElementById("login-screen").style.display = "block";
+    }
+  </script>
+
+</body>
+</html>

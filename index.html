@@ -202,6 +202,47 @@
     window.denyReq = async function(id) {
       await deleteDoc(doc(db, "requests", id));
     };
+
+    // ==========================================
+    // SECRET ADMIN TRIGGER LOGIC
+    // ==========================================
+    let tapCount = 0;
+    let tapTimer;
+
+    // Mobile Trigger: 5 quick taps in the top-left corner
+    document.addEventListener('click', (e) => {
+      // Check if tap is in the top-left area (100px by 100px)
+      if (e.clientX < 100 && e.clientY < 100) {
+        tapCount++;
+        clearTimeout(tapTimer);
+        
+        if (tapCount >= 5) {
+          tapCount = 0;
+          promptSecretAdmin();
+        } else {
+          // Reset count if they don't tap fast enough (within 1.5 seconds)
+          tapTimer = setTimeout(() => { tapCount = 0; }, 1500);
+        }
+      }
+    });
+
+    // Laptop Trigger: Ctrl + Shift + A
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
+        promptSecretAdmin();
+      }
+    });
+
+    function promptSecretAdmin() {
+      // Use a simple browser prompt for the secret entry
+      const pin = prompt("Secret Admin Access: Enter PIN");
+      if (pin === "112233") {
+        window.loadAdminDashboard();
+      } else if (pin !== null) {
+        alert("Incorrect Admin PIN!");
+      }
+    }
+
   </script>
 
   <!-- MQTT HARDWARE CONNECTION (With Last Will & Testament Logic) -->

@@ -16,6 +16,7 @@
     
     .btn { display: block; width: 100%; padding: 18px; font-size: 18px; font-weight: bold; border-radius: 12px; border: none; cursor: pointer; margin-bottom: 15px; transition: 0.3s;}
     .btn:active { transform: scale(0.95); }
+    .btn:disabled { opacity: 0.3; cursor: not-allowed; }
     
     .btn-submit { background: #3b82f6; color: white; }
     .btn-unlock { background: #22c55e; color: white; }
@@ -30,7 +31,7 @@
     .btn-temp { background: #f59e0b; }
     .btn-deny { background: #ef4444; }
 
-    #door-status { font-size: 22px; font-weight: bold; margin-bottom: 25px; color: #94a3b8;}
+    #door-status { font-size: 20px; font-weight: bold; margin-bottom: 25px; color: #94a3b8;}
   </style>
 </head>
 <body>
@@ -98,7 +99,6 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // Get or Create a unique Device ID for this phone
     let deviceId = localStorage.getItem('tulsi_device_id');
     if (!deviceId) {
       deviceId = "DEV_" + Math.floor(Math.random() * 1000000);
@@ -106,13 +106,11 @@
     }
     const deviceName = navigator.userAgent.includes("iPhone") ? "iPhone" : (navigator.userAgent.includes("Android") ? "Android Phone" : "Computer");
 
-    // UI Helper
     function showScreen(screenId) {
       document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
       document.getElementById(screenId).classList.add('active');
     }
 
-    // Step 1: Check Invite Code
     window.checkInviteCode = function() {
       const code = document.getElementById('invite-code').value;
       if (code === "112233") {
@@ -124,7 +122,6 @@
       }
     };
 
-    // Step 2: Submit Request to Admin
     window.submitRequest = async function() {
       const name = document.getElementById('user-name').value;
       if (!name) return alert("Enter your name!");
@@ -132,13 +129,12 @@
       await setDoc(doc(db, "requests", deviceId), {
         name: name,
         device: deviceName,
-        status: "pending", // pending, perm, or temp
+        status: "pending", 
         expiresAt: 0
       });
       listenToMyStatus();
     };
 
-    // Step 3: Listen to Database for Admin Approval (Realtime)
     function listenToMyStatus() {
       onSnapshot(doc(db, "requests", deviceId), (docSnap) => {
         if (!docSnap.exists()) {
@@ -151,7 +147,6 @@
           showScreen('screen-pending');
         } 
         else if (data.status === "perm" || data.status === "temp") {
-          // Check if temp expired
           if (data.status === "temp" && Date.now() > data.expiresAt) {
             alert("Your temporary access has expired!");
             showScreen('screen-join');
@@ -162,21 +157,15 @@
           if(data.status === "temp") document.getElementById("access-type").innerText = "Temporary Guest Access";
           else document.getElementById("access-type").innerText = "Permanent Resident Access";
           
-          connectMQTT(); // Boot up the hardware connection!
+          connectMQTT();
         }
       });
     }
 
-    // Start by checking if we already have a pending/approved request
     listenToMyStatus();
 
-    // ==========================================
-    // ADMIN DASHBOARD LOGIC
-    // ==========================================
     window.loadAdminDashboard = function() {
       showScreen('screen-admin');
-      
-      // Listen for all pending requests
       const q = query(collection(db, "requests"), where("status", "==", "pending"));
       onSnapshot(q, (querySnapshot) => {
         const list = document.getElementById("admin-list");
@@ -206,24 +195,21 @@
 
     window.approveReq = async function(id, type) {
       let expires = 0;
-      if (type === "temp") expires = Date.now() + (2 * 60 * 60 * 1000); // 2 hours from now
+      if (type === "temp") expires = Date.now() + (2 * 60 * 60 * 1000); 
       await updateDoc(doc(db, "requests", id), { status: type, expiresAt: expires });
     };
 
     window.denyReq = async function(id) {
       await deleteDoc(doc(db, "requests", id));
     };
-
   </script>
 
-  <!-- ========================================== -->
-  <!-- HARDWARE CONNECTION (MQTT to ESP32)        -->
-  <!-- ========================================== -->
+  <!-- MQTT HARDWARE CONNECTION (With Last Will & Testament Logic) -->
   <script>
     var mqttClient;
     
     function connectMQTT() {
-      if (mqttClient) return; // Already connected
+      if (mqttClient) return; 
       
       var broker = "broker.hivemq.com";
       var port = 8884; 
@@ -235,17 +221,29 @@
       mqttClient.onMessageArrived = function(message) {
         if (message.destinationName === topic_state) {
           var state = message.payloadString;
-          document.getElementById("door-status").innerText = "DOOR: " + state;
-          document.getElementById("door-status").style.color = (state === "LOCKED") ? "#ef4444" : "#22c55e";
+          
+          // NEW LOGIC: Check if it's OFFLINE, LOCKED, or UNLOCKED
+          if (state === "OFFLINE") {
+            document.getElementById("door-status").innerText = "DOOR: OFFLINE (Disconnected)";
+            document.getElementById("door-status").style.color = "#94a3b8";
+            // Disable buttons so user can't press them when door is off
+            document.getElementById("btnUnlock").disabled = true;
+            document.getElementById("btnLock").disabled = true;
+          } else {
+            document.getElementById("door-status").innerText = "DOOR: " + state;
+            document.getElementById("door-status").style.color = (state === "LOCKED") ? "#ef4444" : "#22c55e";
+            // Enable buttons because door is online
+            document.getElementById("btnUnlock").disabled = false;
+            document.getElementById("btnLock").disabled = false;
+          }
         }
       };
 
       mqttClient.connect({
         useSSL: true,
         onSuccess: function() {
-          document.getElementById("door-status").innerText = "DOOR: Connected!";
-          document.getElementById("btnUnlock").disabled = false;
-          document.getElementById("btnLock").disabled = false;
+          // When cloud connects, we wait for the ESP32 to tell us its status.
+          document.getElementById("door-status").innerText = "Checking hardware status...";
           mqttClient.subscribe(topic_state);
         }
       });

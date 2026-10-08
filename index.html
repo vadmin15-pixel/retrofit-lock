@@ -56,7 +56,7 @@
 
   <script>
     var broker = "broker.hivemq.com";
-    var port = 8000; 
+    var port = 8884; 
     
     var topic_command = "my_awesome_room/door_lock/command";
     var topic_state = "my_awesome_room/door_lock/state";
@@ -91,6 +91,7 @@
     };
 
     client.connect({
+       useSSL: true,
       onSuccess: function() {
         document.getElementById("conn-status-1").innerText = "Connected to Cloud! Ready for PIN.";
         client.subscribe(topic_state);

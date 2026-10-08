@@ -71,7 +71,7 @@
     <div id="door-status">DOOR: Checking...</div>
     <div id="access-type" style="color: #f59e0b; margin-bottom: 20px; font-size: 14px;"></div>
     
-    <button id="btnUnlock" class="btn btn-unlock" onclick="userSendUnlock()" disabled>Tap to Unlock</button>
+    <button id="btnUnlock" class="btn btn-unlock" onclick="userSendUnlock()" disabled>Tap to Unlock (FaceID)</button>
     <button id="btnLock" class="btn btn-lock" onclick="userSendLock()" disabled>Tap to Lock</button>
   </div>
 
@@ -80,7 +80,6 @@
     <h2 style="color: #3b82f6; margin-bottom: 5px;">Admin Dashboard</h2>
     <div id="admin-lockdown-status" style="color: #facc15; font-size: 12px; margin-bottom: 15px;">Web Access: NORMAL</div>
     
-    <!-- Admin Settings -->
     <div style="background: #0f172a; padding: 10px; border-radius: 8px; margin-bottom: 15px; text-align: left; font-size: 14px;">
       <h3 style="margin:0 0 10px 0; color:#0ea5e9;">Security Settings</h3>
       Auto-Lock Timer: 
@@ -90,23 +89,19 @@
       <button class="btn-small btn-temp" onclick="generateOTP()" style="width:100%; margin:0; padding:10px;">+ Generate One-Time Link (Airbnb Mode)</button>
     </div>
 
-    <!-- Admin Manual Control -->
     <div style="display: flex; gap: 10px; margin-bottom: 10px;">
       <button class="btn btn-unlock" style="margin:0; padding: 10px;" onclick="sendMQTT('ADMIN_UNLOCK')">Admin Unlock</button>
       <button class="btn btn-lock" style="margin:0; padding: 10px;" onclick="sendMQTT('ADMIN_LOCK')">Admin Lock</button>
     </div>
     
-    <!-- Lockdown Controls -->
     <div style="display: flex; gap: 10px; margin-bottom: 25px;">
       <button class="btn btn-lockdown" style="margin:0; padding: 10px; font-size:12px;" onclick="sendMQTT('ADMIN_DISABLE_WEB')">Enable Lockdown</button>
       <button class="btn btn-restore" style="margin:0; padding: 10px; font-size:12px;" onclick="sendMQTT('ADMIN_ENABLE_WEB')">Disable Lockdown</button>
     </div>
 
-    <!-- PENDING REQUESTS -->
     <h3 style="text-align: left; margin: 10px 0; border-bottom: 1px solid #475569;">Pending Requests</h3>
     <div id="admin-list"></div>
 
-    <!-- APPROVED USERS -->
     <h3 style="text-align: left; margin: 20px 0 10px 0; border-bottom: 1px solid #475569;">Active Users</h3>
     <div id="admin-users-list"></div>
 
@@ -121,14 +116,12 @@
     <button id="btnOtpUnlock" class="btn btn-unlock" onclick="useOTP()" style="display:none;">Unlock Door Now</button>
   </div>
 
-  <!-- LOGS MODAL -->
   <div id="logs-modal">
     <h3 id="logs-title" style="color:#0ea5e9; margin-top:0;">User Logs</h3>
     <div id="logs-content">Loading...</div>
     <button class="btn btn-logout" onclick="document.getElementById('logs-modal').style.display='none'">Close</button>
   </div>
 
-  <!-- FIREBASE INTEGRATION -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
     import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, query, where, getDocs, updateDoc, deleteDoc, addDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
@@ -160,7 +153,6 @@
       document.getElementById(screenId).classList.add('active');
     }
 
-    // CHECK FOR AIRBNB OTP LINK FIRST
     const urlParams = new URLSearchParams(window.location.search);
     const otpCode = urlParams.get('otp');
     let activeOTP = null;
@@ -179,7 +171,6 @@
         }
       });
     } else {
-      // Normal boot sequence
       onSnapshot(doc(db, "requests", deviceId), (docSnap) => {
         if (docSnap.exists() && !document.getElementById('screen-admin').classList.contains('active')) {
            listenToMyStatus();
@@ -241,7 +232,6 @@
       });
     }
 
-    // Time/Schedule Updater Loop
     setInterval(() => {
       if (!currentUserData) return;
       
@@ -259,7 +249,7 @@
       } 
       else if (currentUserData.status === "sched") {
         let now = new Date();
-        let currentDay = now.getDay() === 0 ? 7 : now.getDay(); // 1=Mon...7=Sun
+        let currentDay = now.getDay() === 0 ? 7 : now.getDay();
         let currentHour = now.getHours();
         
         let isValidDay = currentUserData.schedDays.includes(currentDay);
@@ -271,7 +261,6 @@
         } else {
           document.getElementById("access-type").innerText = `Outside Schedule. Allowed Days: ${currentUserData.schedDays.join(',')} (${currentUserData.schedStart}:00 - ${currentUserData.schedEnd}:00)`;
         }
-        // Force button state update based on schedule validity
         if(document.getElementById("door-status").innerText.includes("OFFLINE")) {
            document.getElementById("btnUnlock").disabled = true;
         } else {
@@ -288,12 +277,93 @@
       await addDoc(collection(db, "logs"), { deviceId: deviceId, name: myName, action: action, timestamp: Date.now() });
     };
 
+    // ==========================================
+    // BIOMETRICS (WebAuthn) LOGIC
+    // ==========================================
+    function bufferToBase64(buffer) {
+        let binary = ''; const bytes = new Uint8Array(buffer);
+        for (let i = 0; i < bytes.byteLength; i++) { binary += String.fromCharCode(bytes[i]); }
+        return window.btoa(binary);
+    }
+    function base64ToBuffer(base64) {
+        const binary = window.atob(base64); const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) { bytes[i] = binary.charCodeAt(i); }
+        return bytes.buffer;
+    }
+
+    window.requireBiometric = async function() {
+      // Security Check: Biometrics require HTTPS and Browser Support
+      if (!window.PublicKeyCredential || window.location.hostname === "" || window.location.hostname === "localhost") {
+         return prompt("Biometrics not supported locally or on this browser. Enter PIN (104104) to unlock:") === "104104";
+      }
+
+      const challenge = new Uint8Array(32);
+      window.crypto.getRandomValues(challenge);
+
+      let credentialId = localStorage.getItem("tulsi_passkey_id");
+
+      if (!credentialId) {
+         try {
+           alert("First time setup: We will now link this device's FaceID/Fingerprint for secure access.");
+           const userId = new Uint8Array(16);
+           window.crypto.getRandomValues(userId);
+           
+           const cred = await navigator.credentials.create({
+             publicKey: {
+               challenge: challenge,
+               rp: { name: "Tulsi Smart Lock", id: window.location.hostname },
+               user: { id: userId, name: myName, displayName: myName },
+               pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
+               authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
+               timeout: 60000
+             }
+           });
+           
+           localStorage.setItem("tulsi_passkey_id", bufferToBase64(cred.rawId));
+           return true;
+         } catch(err) {
+           console.error(err);
+           return prompt("Biometric setup cancelled. Enter fallback PIN:") === "104104";
+         }
+      } else {
+         try {
+           const rawId = base64ToBuffer(credentialId);
+           const assertion = await navigator.credentials.get({
+             publicKey: {
+               challenge: challenge,
+               rpId: window.location.hostname,
+               allowCredentials: [{ type: "public-key", id: rawId }],
+               userVerification: "required",
+               timeout: 60000
+             }
+           });
+           return true; 
+         } catch(err) {
+           console.error(err);
+           if (err.name === 'NotAllowedError') {
+              alert("Biometric verification failed.");
+           } else {
+              localStorage.removeItem("tulsi_passkey_id");
+              alert("Passkey error. Try again to re-register.");
+           }
+           return false;
+         }
+      }
+    };
+
     window.userSendUnlock = async function() {
+      // 1. Verify Biometrics First!
+      let verified = await window.requireBiometric();
+      if (!verified) return; // Stop if failed or cancelled
+
+      // 2. Reduce Temp Access Count (if applicable)
       if (currentUserData.status === "temp" && currentUserData.unlocksRemaining > 0) {
         let newCount = currentUserData.unlocksRemaining - 1;
         await updateDoc(doc(db, "requests", deviceId), { unlocksRemaining: newCount });
         if (newCount <= 0) setTimeout(() => deleteDoc(doc(db, "requests", deviceId)), 3000);
       }
+      
+      // 3. Send Command
       sendMQTT('UNLOCK');
       logActionToDB('UNLOCKED');
     };
@@ -309,7 +379,6 @@
     window.loadAdminDashboard = function() {
       showScreen('screen-admin');
       
-      // Auto-Lock Settings sync
       onSnapshot(doc(db, "settings", "tulsi"), (docSnap) => {
         if(docSnap.exists()) {
           let mins = docSnap.data().autoLockMinutes || 0;
@@ -443,7 +512,9 @@
       if (mqttClient) return; 
       var broker = "broker.hivemq.com";
       var port = 8884; 
-      var topic_command = "my_awesome_room/door_lock/command";
+      
+      // CRITICAL SECURITY FIX: Changed the command topic to v2 to clear any old ghost commands
+      var topic_command = "my_awesome_room/door_lock/cmd_v2";
       var topic_state = "my_awesome_room/door_lock/state";
       var topic_admin = "my_awesome_room/door_lock/admin_state";
       
@@ -459,7 +530,7 @@
           } else {
             document.getElementById("door-status").innerText = "DOOR: " + state;
             document.getElementById("door-status").style.color = (state === "LOCKED") ? "#ef4444" : "#22c55e";
-            // Check schedule before enabling
+            
             if(window.isScheduleValid) {
                document.getElementById("btnUnlock").disabled = false;
                document.getElementById("btnLock").disabled = false;
@@ -486,10 +557,11 @@
         }
       });
     }
+    
     window.sendMQTT = function(cmd) {
       if(!mqttClient) return;
       var message = new Paho.MQTT.Message(cmd);
-      message.destinationName = "my_awesome_room/door_lock/command";
+      message.destinationName = "my_awesome_room/door_lock/cmd_v2";
       mqttClient.send(message);
     }
   </script>

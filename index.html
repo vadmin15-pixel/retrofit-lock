@@ -8,13 +8,13 @@
   
   <style>
     body { font-family: -apple-system, sans-serif; background: #0f172a; color: white; text-align: center; padding: 20px; }
-    .card { background: #1e293b; padding: 30px; border-radius: 20px; max-width: 360px; margin: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.5); display: none; }
+    .card { background: #1e293b; padding: 25px; border-radius: 20px; max-width: 400px; margin: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.5); display: none; }
     .active { display: block; }
     
     h1 { margin-top: 0; color: #facc15; font-size: 28px; letter-spacing: 2px;}
-    input { width: 90%; padding: 15px; font-size: 18px; text-align: center; border-radius: 10px; border: none; margin-bottom: 20px; }
+    input { width: 90%; padding: 15px; font-size: 16px; text-align: center; border-radius: 10px; border: none; margin-bottom: 20px; }
     
-    .btn { display: block; width: 100%; padding: 18px; font-size: 18px; font-weight: bold; border-radius: 12px; border: none; cursor: pointer; margin-bottom: 15px; transition: 0.3s;}
+    .btn { display: block; width: 100%; padding: 16px; font-size: 16px; font-weight: bold; border-radius: 12px; border: none; cursor: pointer; margin-bottom: 12px; transition: 0.3s;}
     .btn:active { transform: scale(0.95); }
     .btn:disabled { opacity: 0.3; cursor: not-allowed; }
     
@@ -22,16 +22,23 @@
     .btn-unlock { background: #22c55e; color: white; }
     .btn-lock { background: #ef4444; color: white; }
     .btn-logout { background: #64748b; color: white; margin-top: 20px;}
+    .btn-lockdown { background: #f97316; color: white; }
+    .btn-restore { background: #8b5cf6; color: white; }
     
-    /* Admin UI */
-    .request-box { background: #334155; padding: 15px; border-radius: 10px; margin-bottom: 15px; text-align: left; }
-    .request-box h3 { margin: 0 0 10px 0; color: white; font-size: 18px; }
-    .btn-small { padding: 10px; border-radius: 8px; border: none; color: white; font-weight: bold; margin-right: 5px; cursor: pointer;}
+    /* Admin UI Lists */
+    .list-box { background: #334155; padding: 15px; border-radius: 10px; margin-bottom: 15px; text-align: left; }
+    .list-box h3 { margin: 0 0 5px 0; color: white; font-size: 16px; }
+    .btn-small { padding: 8px; border-radius: 6px; border: none; color: white; font-weight: bold; margin-right: 5px; cursor: pointer; font-size: 12px;}
     .btn-perm { background: #22c55e; }
     .btn-temp { background: #f59e0b; }
     .btn-deny { background: #ef4444; }
+    .btn-logs { background: #0ea5e9; }
 
-    #door-status { font-size: 20px; font-weight: bold; margin-bottom: 25px; color: #94a3b8;}
+    #door-status { font-size: 20px; font-weight: bold; margin-bottom: 15px; color: #94a3b8;}
+    
+    /* Logs Modal */
+    #logs-modal { display: none; position: fixed; top: 10%; left: 50%; transform: translateX(-50%); background: #1e293b; border: 2px solid #0ea5e9; padding: 20px; z-index: 100; border-radius: 15px; max-height: 70vh; overflow-y: auto; width: 80%; max-width: 350px;}
+    .log-entry { font-size: 12px; border-bottom: 1px solid #475569; padding: 5px 0; text-align: left;}
   </style>
 </head>
 <body>
@@ -67,24 +74,49 @@
     <div id="door-status">DOOR: Checking...</div>
     <div id="access-type" style="color: #f59e0b; margin-bottom: 20px; font-size: 14px;"></div>
     
-    <button id="btnUnlock" class="btn btn-unlock" onclick="sendMQTT('UNLOCK')" disabled>Tap to Unlock</button>
-    <button id="btnLock" class="btn btn-lock" onclick="sendMQTT('LOCK')" disabled>Tap to Lock</button>
+    <button id="btnUnlock" class="btn btn-unlock" onclick="userSendUnlock()" disabled>Tap to Unlock</button>
+    <button id="btnLock" class="btn btn-lock" onclick="userSendLock()" disabled>Tap to Lock</button>
   </div>
 
   <!-- SCREEN 5: ADMIN DASHBOARD -->
-  <div id="screen-admin" class="card" style="border: 2px solid #3b82f6; max-width: 400px;">
-    <h2 style="color: #3b82f6;">Admin Dashboard</h2>
-    <p>Pending Requests for TULSI:</p>
-    <div id="admin-list">
-      <!-- Requests load here -->
+  <div id="screen-admin" class="card" style="border: 2px solid #3b82f6;">
+    <h2 style="color: #3b82f6; margin-bottom: 5px;">Admin Dashboard</h2>
+    <div id="admin-lockdown-status" style="color: #facc15; font-size: 12px; margin-bottom: 15px;">Web Access: NORMAL</div>
+    
+    <!-- Admin Manual Control -->
+    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+      <button class="btn btn-unlock" style="margin:0; padding: 10px;" onclick="sendMQTT('ADMIN_UNLOCK')">Admin Unlock</button>
+      <button class="btn btn-lock" style="margin:0; padding: 10px;" onclick="sendMQTT('ADMIN_LOCK')">Admin Lock</button>
     </div>
+    
+    <!-- Lockdown Controls -->
+    <div style="display: flex; gap: 10px; margin-bottom: 25px;">
+      <button class="btn btn-lockdown" style="margin:0; padding: 10px; font-size:12px;" onclick="sendMQTT('ADMIN_DISABLE_WEB')">Enable Lockdown</button>
+      <button class="btn btn-restore" style="margin:0; padding: 10px; font-size:12px;" onclick="sendMQTT('ADMIN_ENABLE_WEB')">Disable Lockdown</button>
+    </div>
+
+    <!-- PENDING REQUESTS -->
+    <h3 style="text-align: left; margin: 10px 0; border-bottom: 1px solid #475569;">Pending Requests</h3>
+    <div id="admin-list"></div>
+
+    <!-- APPROVED USERS -->
+    <h3 style="text-align: left; margin: 20px 0 10px 0; border-bottom: 1px solid #475569;">Active Users & Guests</h3>
+    <div id="admin-users-list"></div>
+
     <button class="btn btn-logout" onclick="window.location.reload()">Exit Admin</button>
+  </div>
+
+  <!-- LOGS MODAL -->
+  <div id="logs-modal">
+    <h3 id="logs-title" style="color:#0ea5e9; margin-top:0;">User Logs</h3>
+    <div id="logs-content">Loading...</div>
+    <button class="btn btn-logout" onclick="document.getElementById('logs-modal').style.display='none'">Close</button>
   </div>
 
   <!-- FIREBASE INTEGRATION (Module) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-    import { getFirestore, doc, setDoc, onSnapshot, collection, query, where, getDocs, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, onSnapshot, collection, query, where, getDocs, updateDoc, deleteDoc, addDoc, orderBy } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
     // YOUR FIREBASE KEYS
     const firebaseConfig = {
@@ -105,6 +137,8 @@
       localStorage.setItem('tulsi_device_id', deviceId);
     }
     const deviceName = navigator.userAgent.includes("iPhone") ? "iPhone" : (navigator.userAgent.includes("Android") ? "Android Phone" : "Computer");
+    let myName = localStorage.getItem('tulsi_my_name') || "Unknown User";
+    let currentUserData = null;
 
     function showScreen(screenId) {
       document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
@@ -115,6 +149,7 @@
       const code = document.getElementById('invite-code').value;
       if (code === "112233") {
         loadAdminDashboard();
+        connectMQTT(); // Connect admin to MQTT
       } else if (code === "7788") {
         showScreen('screen-request');
       } else {
@@ -125,12 +160,15 @@
     window.submitRequest = async function() {
       const name = document.getElementById('user-name').value;
       if (!name) return alert("Enter your name!");
+      myName = name;
+      localStorage.setItem('tulsi_my_name', name);
       
       await setDoc(doc(db, "requests", deviceId), {
         name: name,
         device: deviceName,
         status: "pending", 
-        expiresAt: 0
+        expiresAt: 0,
+        unlocksRemaining: -1
       });
       listenToMyStatus();
     };
@@ -138,69 +176,192 @@
     function listenToMyStatus() {
       onSnapshot(doc(db, "requests", deviceId), (docSnap) => {
         if (!docSnap.exists()) {
-          showScreen('screen-join');
+          if (document.getElementById('screen-control').classList.contains('active') || document.getElementById('screen-pending').classList.contains('active')) {
+            alert("Your access has been revoked or expired.");
+            showScreen('screen-join');
+          }
           return;
         }
         
-        const data = docSnap.data();
-        if (data.status === "pending") {
+        currentUserData = docSnap.data();
+        if (currentUserData.status === "pending") {
           showScreen('screen-pending');
         } 
-        else if (data.status === "perm" || data.status === "temp") {
-          if (data.status === "temp" && Date.now() > data.expiresAt) {
-            alert("Your temporary access has expired!");
-            showScreen('screen-join');
-            return;
-          }
-          
+        else if (currentUserData.status === "perm" || currentUserData.status === "temp") {
           showScreen('screen-control');
-          if(data.status === "temp") document.getElementById("access-type").innerText = "Temporary Guest Access";
-          else document.getElementById("access-type").innerText = "Permanent Resident Access";
-          
           connectMQTT();
         }
       });
     }
 
-    listenToMyStatus();
+    // Auto-login check on boot
+    onSnapshot(doc(db, "requests", deviceId), (docSnap) => {
+      if (docSnap.exists() && !document.getElementById('screen-admin').classList.contains('active')) {
+         listenToMyStatus();
+      }
+    });
 
-    window.loadAdminDashboard = function() {
-      showScreen('screen-admin');
-      const q = query(collection(db, "requests"), where("status", "==", "pending"));
-      onSnapshot(q, (querySnapshot) => {
-        const list = document.getElementById("admin-list");
-        list.innerHTML = "";
+    // Time/Unlock Remaining Updater Loop (Runs every second)
+    setInterval(() => {
+      if (currentUserData && currentUserData.status === "temp") {
+        let accessText = "";
         
-        if (querySnapshot.empty) {
-          list.innerHTML = "<p style='color:#94a3b8;'>No pending requests right now.</p>";
-          return;
+        // Time based check
+        if (currentUserData.expiresAt > 0) {
+          let diff = currentUserData.expiresAt - Date.now();
+          if (diff <= 0) {
+             deleteDoc(doc(db, "requests", deviceId)); // Self revoke
+             return;
+          }
+          let totalMins = Math.floor(diff / 60000);
+          let hrs = Math.floor(totalMins / 60);
+          let mins = totalMins % 60;
+          accessText = `Guest Access: ${hrs}h ${mins}m remaining`;
+        } 
+        // Unlock count check
+        else if (currentUserData.unlocksRemaining >= 0) {
+          accessText = `Guest Access: ${currentUserData.unlocksRemaining} unlocks remaining`;
         }
+        document.getElementById("access-type").innerText = accessText;
+      } else if (currentUserData && currentUserData.status === "perm") {
+        document.getElementById("access-type").innerText = "Permanent Resident Access";
+      }
+    }, 1000);
 
-        querySnapshot.forEach((docSnap) => {
-          const req = docSnap.data();
-          const reqId = docSnap.id;
-          
-          list.innerHTML += `
-            <div class="request-box">
-              <h3>👤 ${req.name}</h3>
-              <p style="margin: 0 0 10px 0; font-size: 12px; color: #94a3b8;">📱 ${req.device}</p>
-              <button class="btn-small btn-perm" onclick="approveReq('${reqId}', 'perm')">Perm Access</button>
-              <button class="btn-small btn-temp" onclick="approveReq('${reqId}', 'temp')">Temp (2hr)</button>
-              <button class="btn-small btn-deny" onclick="denyReq('${reqId}')">Deny</button>
-            </div>
-          `;
-        });
+    // Logs a user action to Firestore
+    window.logActionToDB = async function(action) {
+      await addDoc(collection(db, "logs"), {
+        deviceId: deviceId,
+        name: myName,
+        action: action,
+        timestamp: Date.now()
       });
     };
 
+    window.userSendUnlock = async function() {
+      if (currentUserData.status === "temp" && currentUserData.unlocksRemaining > 0) {
+        let newCount = currentUserData.unlocksRemaining - 1;
+        await updateDoc(doc(db, "requests", deviceId), { unlocksRemaining: newCount });
+        if (newCount <= 0) {
+          setTimeout(() => deleteDoc(doc(db, "requests", deviceId)), 3000); // Revoke after 3s
+        }
+      }
+      sendMQTT('UNLOCK');
+      logActionToDB('UNLOCKED');
+    };
+
+    window.userSendLock = async function() {
+      sendMQTT('LOCK');
+      logActionToDB('LOCKED');
+    };
+
+    // ==========================================
+    // ADMIN DASHBOARD LOGIC
+    // ==========================================
+    window.loadAdminDashboard = function() {
+      showScreen('screen-admin');
+      
+      // 1. Listen for Pending Requests
+      const qPending = query(collection(db, "requests"), where("status", "==", "pending"));
+      onSnapshot(qPending, (querySnapshot) => {
+        const list = document.getElementById("admin-list");
+        list.innerHTML = "";
+        if (querySnapshot.empty) {
+          list.innerHTML = "<p style='color:#94a3b8; font-size:14px;'>No pending requests.</p>";
+        } else {
+          querySnapshot.forEach((docSnap) => {
+            const req = docSnap.data();
+            list.innerHTML += `
+              <div class="list-box">
+                <h3>👤 ${req.name}</h3>
+                <p style="margin: 0 0 10px 0; font-size: 12px; color: #94a3b8;">📱 ${req.device}</p>
+                <button class="btn-small btn-perm" onclick="approveReq('${docSnap.id}', 'perm')">Perm</button>
+                <button class="btn-small btn-temp" onclick="promptTemp('${docSnap.id}')">Temp</button>
+                <button class="btn-small btn-deny" onclick="denyReq('${docSnap.id}')">Deny</button>
+              </div>`;
+          });
+        }
+      });
+
+      // 2. Listen for Approved Users
+      const qApproved = query(collection(db, "requests"), where("status", "in", ["perm", "temp"]));
+      onSnapshot(qApproved, (querySnapshot) => {
+        const list = document.getElementById("admin-users-list");
+        list.innerHTML = "";
+        if (querySnapshot.empty) {
+          list.innerHTML = "<p style='color:#94a3b8; font-size:14px;'>No active users.</p>";
+        } else {
+          querySnapshot.forEach((docSnap) => {
+            const req = docSnap.data();
+            let badge = req.status === "perm" ? "🟢 Perm" : "🟠 Temp";
+            list.innerHTML += `
+              <div class="list-box">
+                <h3>${badge} | 👤 ${req.name}</h3>
+                <button class="btn-small btn-deny" onclick="denyReq('${docSnap.id}')">Remove Access</button>
+                <button class="btn-small btn-logs" onclick="viewLogs('${docSnap.id}', '${req.name}')">View Logs</button>
+              </div>`;
+          });
+        }
+      });
+    };
+
+    window.promptTemp = async function(id) {
+      let choice = prompt("Enter 'T' for Time-limit (Minutes), or 'U' for Unlock-limit (Count):", "T");
+      if (!choice) return;
+      choice = choice.toUpperCase();
+      
+      if (choice === 'T') {
+        let mins = prompt("Enter number of minutes they can access:");
+        if (mins && !isNaN(mins)) {
+          let expires = Date.now() + (parseInt(mins) * 60000);
+          await updateDoc(doc(db, "requests", id), { status: "temp", expiresAt: expires, unlocksRemaining: -1 });
+        }
+      } else if (choice === 'U') {
+        let count = prompt("Enter number of unlocks allowed:");
+        if (count && !isNaN(count)) {
+          await updateDoc(doc(db, "requests", id), { status: "temp", expiresAt: 0, unlocksRemaining: parseInt(count) });
+        }
+      } else {
+        alert("Invalid choice. Try again.");
+      }
+    };
+
     window.approveReq = async function(id, type) {
-      let expires = 0;
-      if (type === "temp") expires = Date.now() + (2 * 60 * 60 * 1000); 
-      await updateDoc(doc(db, "requests", id), { status: type, expiresAt: expires });
+      await updateDoc(doc(db, "requests", id), { status: type, expiresAt: 0, unlocksRemaining: -1 });
     };
 
     window.denyReq = async function(id) {
-      await deleteDoc(doc(db, "requests", id));
+      if(confirm("Are you sure you want to remove this user?")) {
+        await deleteDoc(doc(db, "requests", id));
+      }
+    };
+
+    window.viewLogs = async function(devId, name) {
+      document.getElementById('logs-modal').style.display = 'block';
+      document.getElementById('logs-title').innerText = "Logs for " + name;
+      document.getElementById('logs-content').innerHTML = "Loading...";
+
+      const qLogs = query(collection(db, "logs"), where("deviceId", "==", devId));
+      const querySnapshot = await getDocs(qLogs);
+      
+      let html = "";
+      let logsArr = [];
+      querySnapshot.forEach((doc) => logsArr.push(doc.data()));
+      
+      // Sort newest first
+      logsArr.sort((a, b) => b.timestamp - a.timestamp);
+      
+      if(logsArr.length === 0) {
+        html = "<p>No logs found.</p>";
+      } else {
+        logsArr.forEach(l => {
+          let d = new Date(l.timestamp);
+          let dateStr = d.toLocaleDateString() + " " + d.toLocaleTimeString();
+          let color = l.action === "UNLOCKED" ? "#22c55e" : "#ef4444";
+          html += `<div class="log-entry">[${dateStr}] - <span style="color:${color}; font-weight:bold;">${l.action}</span></div>`;
+        });
+      }
+      document.getElementById('logs-content').innerHTML = html;
     };
 
     // ==========================================
@@ -209,39 +370,26 @@
     let tapCount = 0;
     let tapTimer;
 
-    // Mobile Trigger: 5 quick taps in the top-left corner
     document.addEventListener('click', (e) => {
-      // Check if tap is in the top-left area (100px by 100px)
       if (e.clientX < 100 && e.clientY < 100) {
         tapCount++;
         clearTimeout(tapTimer);
-        
         if (tapCount >= 5) {
           tapCount = 0;
-          promptSecretAdmin();
+          const pin = prompt("Secret Admin Access: Enter PIN");
+          if (pin === "112233") { loadAdminDashboard(); connectMQTT(); }
         } else {
-          // Reset count if they don't tap fast enough (within 1.5 seconds)
           tapTimer = setTimeout(() => { tapCount = 0; }, 1500);
         }
       }
     });
 
-    // Laptop Trigger: Ctrl + Shift + A
     document.addEventListener('keydown', (e) => {
       if (e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
-        promptSecretAdmin();
+        const pin = prompt("Secret Admin Access: Enter PIN");
+        if (pin === "112233") { loadAdminDashboard(); connectMQTT(); }
       }
     });
-
-    function promptSecretAdmin() {
-      // Use a simple browser prompt for the secret entry
-      const pin = prompt("Secret Admin Access: Enter PIN");
-      if (pin === "112233") {
-        window.loadAdminDashboard();
-      } else if (pin !== null) {
-        alert("Incorrect Admin PIN!");
-      }
-    }
 
   </script>
 
@@ -249,43 +397,51 @@
   <script>
     var mqttClient;
     
-    function connectMQTT() {
+    window.connectMQTT = function() {
       if (mqttClient) return; 
       
       var broker = "broker.hivemq.com";
       var port = 8884; 
       var topic_command = "my_awesome_room/door_lock/command";
       var topic_state = "my_awesome_room/door_lock/state";
+      var topic_admin = "my_awesome_room/door_lock/admin_state";
       
       mqttClient = new Paho.MQTT.Client(broker, port, "WebApp-" + Math.floor(Math.random() * 10000));
 
       mqttClient.onMessageArrived = function(message) {
+        var state = message.payloadString;
+        
         if (message.destinationName === topic_state) {
-          var state = message.payloadString;
-          
-          // NEW LOGIC: Check if it's OFFLINE, LOCKED, or UNLOCKED
           if (state === "OFFLINE") {
             document.getElementById("door-status").innerText = "DOOR: OFFLINE (Disconnected)";
             document.getElementById("door-status").style.color = "#94a3b8";
-            // Disable buttons so user can't press them when door is off
             document.getElementById("btnUnlock").disabled = true;
             document.getElementById("btnLock").disabled = true;
           } else {
             document.getElementById("door-status").innerText = "DOOR: " + state;
             document.getElementById("door-status").style.color = (state === "LOCKED") ? "#ef4444" : "#22c55e";
-            // Enable buttons because door is online
             document.getElementById("btnUnlock").disabled = false;
             document.getElementById("btnLock").disabled = false;
           }
+        }
+        
+        if (message.destinationName === topic_admin) {
+           if (state === "WEB_DISABLED") {
+             document.getElementById("admin-lockdown-status").innerText = "Web Access: DISABLED (Lockdown Active!)";
+             document.getElementById("admin-lockdown-status").style.color = "#ef4444";
+           } else {
+             document.getElementById("admin-lockdown-status").innerText = "Web Access: NORMAL";
+             document.getElementById("admin-lockdown-status").style.color = "#22c55e";
+           }
         }
       };
 
       mqttClient.connect({
         useSSL: true,
         onSuccess: function() {
-          // When cloud connects, we wait for the ESP32 to tell us its status.
           document.getElementById("door-status").innerText = "Checking hardware status...";
           mqttClient.subscribe(topic_state);
+          mqttClient.subscribe(topic_admin);
         }
       });
     }

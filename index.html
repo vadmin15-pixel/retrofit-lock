@@ -226,8 +226,18 @@
   <!-- SCREEN 2: REQUEST ACCESS (Shows TULSI) -->
   <div id="screen-request" class="card">
     <h1>TULSI</h1>
-    <p>House found! Please enter your name to request access.</p>
+    <p>House found! Please enter your name and take a mandatory live selfie.</p>
     <input type="text" id="user-name" placeholder="Your Name" />
+    
+    <div id="camera-container" style="margin: 15px 0; border: 2px solid #272a30; border-radius: 12px; overflow: hidden; position: relative; background: #1e2024; min-height: 200px;">
+      <video id="selfie-video" autoplay playsinline style="width: 100%; height: auto; transform: scaleX(-1); display: block;"></video>
+      <canvas id="selfie-canvas" style="display: none; width: 100%; height: auto; transform: scaleX(-1);"></canvas>
+      <button id="btn-capture" class="btn btn-submit" style="position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); width: auto; padding: 8px 15px; font-size: 12px; z-index: 10;" onclick="captureSelfie()">📸 Snap Selfie</button>
+      <button id="btn-retake" class="btn btn-revoke" style="position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); width: auto; padding: 8px 15px; font-size: 12px; display: none; z-index: 10;" onclick="retakeSelfie()">🔄 Retake</button>
+    </div>
+    
+    <p id="selfie-error" style="color: #ff5e00; font-size: 12px; display: none; margin-bottom: 10px; font-weight: bold; text-align: center;">A live selfie is required!</p>
+
     <button class="btn btn-submit" onclick="submitRequest()">Send Request to Admin</button>
   </div>
 
@@ -425,6 +435,62 @@
       await addDoc(collection(db, "logs"), { deviceId: "OTP_GUEST", name: "Airbnb Guest", action: "UNLOCKED (OTP)", timestamp: Date.now() });
     };
 
+    let selfieDataUrl = null;
+    let cameraStream = null;
+
+    window.startCamera = async function() {
+        try {
+            const constraints = { video: { facingMode: "user" } }; // Force front camera
+            cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+            const video = document.getElementById('selfie-video');
+            video.srcObject = cameraStream;
+            video.style.display = 'block';
+            document.getElementById('selfie-canvas').style.display = 'none';
+            document.getElementById('btn-capture').style.display = 'block';
+            document.getElementById('btn-retake').style.display = 'none';
+            document.getElementById('selfie-error').style.display = 'none';
+        } catch (err) {
+            console.error(err);
+            document.getElementById('selfie-error').innerText = "Camera access is strictly required to join!";
+            document.getElementById('selfie-error').style.display = 'block';
+        }
+    };
+
+    window.stopCamera = function() {
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(track => track.stop());
+            cameraStream = null;
+        }
+    };
+
+    window.captureSelfie = function() {
+        const video = document.getElementById('selfie-video');
+        const canvas = document.getElementById('selfie-canvas');
+        if (!video.videoWidth) return;
+        const context = canvas.getContext('2d');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        // Match the mirrored video feed
+        context.translate(canvas.width, 0);
+        context.scale(-1, 1);
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        selfieDataUrl = canvas.toDataURL('image/jpeg', 0.6); // Compress to 60% quality JPEG
+        
+        video.style.display = 'none';
+        canvas.style.display = 'block';
+        document.getElementById('btn-capture').style.display = 'none';
+        document.getElementById('btn-retake').style.display = 'block';
+        document.getElementById('selfie-error').style.display = 'none';
+        stopCamera();
+    };
+
+    window.retakeSelfie = function() {
+        selfieDataUrl = null;
+        startCamera();
+    };
+
     window.checkInviteCode = function() {
       const code = document.getElementById('invite-code').value;
       if (code === "112233") {
@@ -432,6 +498,7 @@
         connectMQTT();
       } else if (code === "7788") {
         showScreen('screen-request');
+        startCamera();
       } else {
         alert("Invalid Code!");
       }
@@ -440,9 +507,15 @@
     window.submitRequest = async function() {
       const name = document.getElementById('user-name').value;
       if (!name) return alert("Enter your name!");
+      if (!selfieDataUrl) {
+          document.getElementById('selfie-error').style.display = 'block';
+          return;
+      }
       myName = name;
       localStorage.setItem('tulsi_my_name', name);
-      await setDoc(doc(db, "requests", deviceId), { name: name, device: deviceName, status: "pending", expiresAt: 0, unlocksRemaining: -1, requireBiometrics: true });
+      // Save selfie to Firebase along with request data
+      await setDoc(doc(db, "requests", deviceId), { name: name, device: deviceName, status: "pending", expiresAt: 0, unlocksRemaining: -1, requireBiometrics: true, photo: selfieDataUrl });
+      stopCamera();
       listenToMyStatus();
     };
 
@@ -672,11 +745,15 @@
             const req = docSnap.data();
             list.innerHTML += `
               <div class="list-box">
-                <h3>👤 ${req.name}</h3><p style="margin:0 0 10px 0; font-size:12px; color:#94a3b8;">📱 ${req.device}</p>
-                <button class="btn-small btn-perm" onclick="approveReq('${docSnap.id}', 'perm')">Perm</button>
-                <button class="btn-small btn-temp" onclick="promptTemp('${docSnap.id}')">Temp</button>
-                <button class="btn-small btn-sched" onclick="promptSched('${docSnap.id}')">Sched</button>
-                <button class="btn-small btn-deny" onclick="denyReq('${docSnap.id}')">Deny</button>
+                ${req.photo ? `<div style="text-align: center; margin-bottom: 10px;"><img src="${req.photo}" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 2px solid #ff5e00;"></div>` : ''}
+                <h3 style="text-align: center; margin-bottom: 5px;">👤 ${req.name}</h3>
+                <p style="text-align: center; margin:0 0 10px 0; font-size:12px; color:#94a3b8;">📱 ${req.device}</p>
+                <div style="display: flex; justify-content: center; gap: 5px;">
+                  <button class="btn-small btn-perm" onclick="approveReq('${docSnap.id}', 'perm')">Perm</button>
+                  <button class="btn-small btn-temp" onclick="promptTemp('${docSnap.id}')">Temp</button>
+                  <button class="btn-small btn-sched" onclick="promptSched('${docSnap.id}')">Sched</button>
+                  <button class="btn-small btn-deny" onclick="denyReq('${docSnap.id}')">Deny</button>
+                </div>
               </div>`;
           });
         }

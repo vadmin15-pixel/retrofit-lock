@@ -1,17 +1,17 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
   <title>TULSI Smart Lock</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
   
   <style>
-    body { font-family: -apple-system, sans-serif; background: #0f172a; color: white; text-align: center; padding: 20px; overflow-x: hidden; }
-    .card { background: #1e293b; padding: 25px; border-radius: 20px; max-width: 400px; margin: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.5); display: none; }
+    body { font-family: -apple-system, sans-serif; background: #0f172a; color: white; text-align: center; padding: 20px; overflow-x: hidden; margin: 0; }
+    .card { background: #1e293b; padding: 25px; border-radius: 20px; max-width: 400px; margin: 20px auto; box-shadow: 0 10px 25px rgba(0,0,0,0.5); display: none; position: relative; z-index: 10; }
     .active { display: block; }
     
     h1 { margin-top: 0; color: #facc15; font-size: 28px; letter-spacing: 2px;}
-    input { width: 90%; padding: 15px; font-size: 16px; text-align: center; border-radius: 10px; border: none; margin-bottom: 20px; }
+    input { width: 90%; padding: 15px; font-size: 16px; text-align: center; border-radius: 10px; border: none; margin-bottom: 20px; box-sizing: border-box; }
     
     .btn { display: block; width: 100%; padding: 16px; font-size: 16px; font-weight: bold; border-radius: 12px; border: none; cursor: pointer; margin-bottom: 12px; transition: 0.3s;}
     .btn:active { transform: scale(0.95); }
@@ -41,107 +41,174 @@
     /* ==========================================
        EXPERIMENTAL / SPATIAL UI STYLES
        ========================================== */
+       
+    /* Dynamic Backgrounds */
+    .spatial-bg {
+        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1;
+        transition: background 2s ease, opacity 1s;
+        opacity: 0; pointer-events: none;
+    }
+    .spatial-bg.active { opacity: 1; }
+    
+    .spatial-bg.sunset {
+        background: linear-gradient(to bottom, #1e293b 0%, #31104f 20%, #7e5296 45%, #ff9a9e 60%, #e11d48 75%, #f97316 85%, #facc15 100%);
+    }
+    .spatial-bg.night {
+        background: linear-gradient(to bottom, #020617 0%, #0f172a 50%, #1e293b 100%);
+    }
+    .spatial-bg.day {
+        background: linear-gradient(to bottom, #38bdf8 0%, #0ea5e9 50%, #bae6fd 100%);
+    }
+
+    /* Stars and Moon for Sunset/Night */
+    .moon-stars { display: none; position: absolute; width: 100%; height: 100%; }
+    .stars {
+        position: absolute; width: 100%; height: 100%;
+        background-image: radial-gradient(white, rgba(255,255,255,.2) 1px, transparent 2px), radial-gradient(white, rgba(255,255,255,.15) 1px, transparent 2px);
+        background-size: 100px 100px, 150px 150px;
+        background-position: 0 0, 40px 60px;
+        opacity: 0.3;
+        animation: twinkle 3s infinite alternate;
+    }
+    .moon {
+        position: absolute; top: 12%; right: 15%; width: 40px; height: 40px;
+        background: rgba(255,255,255,0.7);
+        border-radius: 50%;
+        box-shadow: 0 0 25px rgba(255,255,255,0.6);
+        opacity: 0.5;
+    }
+    @keyframes twinkle { 0% { opacity: 0.2; } 100% { opacity: 0.7; } }
+
+    /* Main Glass Card */
     .glass-card {
-        background: rgba(255, 255, 255, 0.03);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        box-shadow: 0 25px 45px rgba(0, 0, 0, 0.5);
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(25px);
+        -webkit-backdrop-filter: blur(25px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 25px 45px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(255,255,255,0.05);
         border-radius: 30px;
         padding: 30px;
-        margin: auto;
+        margin: 20px auto;
         max-width: 400px;
         display: none;
+        position: relative;
+        z-index: 10;
         transform-style: preserve-3d;
         transition: transform 0.1s ease-out;
     }
-    
-    .glass-card.active {
-        display: block;
+    .glass-card.active { display: block; }
+
+    /* Mute Button */
+    .mute-btn {
+        position: absolute; top: 20px; right: 20px;
+        background: rgba(255,255,255,0.1);
+        border: 1px solid rgba(255,255,255,0.2);
+        color: white; border-radius: 50%;
+        width: 35px; height: 35px; font-size: 16px;
+        cursor: pointer; display: flex; justify-content: center; align-items: center;
+        z-index: 20;
+    }
+
+    /* Mic Button (Push to Talk) */
+    .mic-btn {
+        position: absolute; top: 50%; left: -15px; transform: translateY(-50%);
+        background: rgba(255,255,255,0.15);
+        border: 1px solid rgba(255,255,255,0.3);
+        color: white; border-radius: 50%;
+        width: 45px; height: 45px; font-size: 20px;
+        cursor: pointer; display: flex; justify-content: center; align-items: center;
+        z-index: 20; box-shadow: 0 0 15px rgba(0,0,0,0.5);
+        transition: 0.2s;
+        touch-action: none; /* Prevent scroll on hold */
+    }
+    .mic-btn:active { background: #ef4444; box-shadow: 0 0 20px #ef4444; transform: translateY(-50%) scale(0.9); }
+
+    #mic-status {
+        position: absolute; top: 50%; left: 35px; transform: translateY(-50%);
+        font-size: 10px; color: #facc15; font-weight: bold; width: 60px;
+        text-align: left; text-shadow: 0 1px 3px black; pointer-events: none;
+    }
+
+    /* Success Particles */
+    .particle {
+        position: absolute;
+        width: 8px; height: 8px;
+        background: #22c55e;
+        border-radius: 50%;
+        box-shadow: 0 0 10px #22c55e, 0 0 20px #22c55e;
+        pointer-events: none;
+        transition: all 0.8s cubic-bezier(0.1, 0.8, 0.3, 1);
+        z-index: 50;
+        opacity: 1;
+    }
+
+    /* Shake Helper Text */
+    .shake-helper {
+        position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%);
+        font-size: 10px; color: rgba(255,255,255,0.4); font-weight: bold;
+        letter-spacing: 1px; pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,0.5);
     }
 
     /* 3D Digital Twin Door */
     .door-container {
-        width: 140px;
-        height: 220px;
-        perspective: 1200px;
-        margin: 25px auto;
+        width: 140px; height: 220px; perspective: 1200px; margin: 25px auto;
     }
     .door-frame {
-        width: 100%;
-        height: 100%;
-        border: 10px solid #334155;
-        border-bottom: none;
-        position: relative;
-        background: #000;
+        width: 100%; height: 100%; border: 10px solid rgba(51, 65, 85, 0.8);
+        border-bottom: none; position: relative; background: rgba(0,0,0,0.5);
         box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
     }
     .door-panel {
-        width: 100%;
-        height: 100%;
+        width: 100%; height: 100%;
         background: linear-gradient(135deg, #ef4444 0%, #991b1b 100%);
         transform-origin: left;
         transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1), background 0.5s;
-        box-shadow: inset -5px 0 15px rgba(0,0,0,0.4);
+        box-shadow: inset -5px 0 15px rgba(0,0,0,0.6);
     }
     .door-panel.open {
         transform: rotateY(-85deg);
         background: linear-gradient(135deg, #22c55e 0%, #166534 100%);
     }
     .door-knob {
-        width: 14px;
-        height: 14px;
+        width: 14px; height: 14px;
         background: radial-gradient(circle, #fcd34d 0%, #b45309 100%);
-        border-radius: 50%;
-        position: absolute;
-        right: 12px;
-        top: 50%;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+        border-radius: 50%; position: absolute; right: 12px; top: 50%;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.8);
     }
 
     /* Haptic Vault Dial */
     .dial-container {
-        width: 160px;
-        height: 160px;
-        border-radius: 50%;
-        background: rgba(15, 23, 42, 0.6);
-        margin: 30px auto;
-        position: relative;
-        border: 6px solid rgba(255, 255, 255, 0.1);
-        display: flex;
-        justify-content: center;
-        align-items: center;
+        width: 160px; height: 160px; border-radius: 50%;
+        background: rgba(15, 23, 42, 0.6); margin: 30px auto 40px auto;
+        position: relative; border: 6px solid rgba(255, 255, 255, 0.15);
+        display: flex; justify-content: center; align-items: center;
         touch-action: none;
-        box-shadow: inset 0 0 20px rgba(0,0,0,0.5), 0 0 15px rgba(0,0,0,0.2);
+        box-shadow: inset 0 0 25px rgba(0,0,0,0.7), 0 0 15px rgba(0,0,0,0.3);
     }
     .dial-knob-container {
-        position: absolute;
-        width: 100%;
-        height: 100%;
-        border-radius: 50%;
+        position: absolute; width: 100%; height: 100%; border-radius: 50%;
     }
     .dial-knob {
-        width: 34px;
-        height: 34px;
-        background: #0ea5e9;
-        border-radius: 50%;
-        position: absolute;
-        top: -17px;
-        left: 50%;
-        transform: translateX(-50%);
+        width: 34px; height: 34px; background: #0ea5e9; border-radius: 50%;
+        position: absolute; top: -17px; left: 50%; transform: translateX(-50%);
         box-shadow: 0 0 15px #0ea5e9, inset 0 0 5px rgba(255,255,255,0.8);
         border: 2px solid #38bdf8;
     }
     .dial-label {
-        font-size: 13px;
-        color: #94a3b8;
-        pointer-events: none;
-        font-weight: bold;
-        text-shadow: 0 2px 5px rgba(0,0,0,0.8);
+        font-size: 13px; color: #cbd5e1; pointer-events: none; font-weight: bold;
+        text-shadow: 0 2px 5px rgba(0,0,0,0.9);
     }
   </style>
 </head>
 <body>
+
+  <!-- Dynamic Background for Spatial Mode -->
+  <div id="spatial-bg" class="spatial-bg">
+    <div id="moon-stars" class="moon-stars">
+      <div class="stars"></div>
+      <div class="moon"></div>
+    </div>
+  </div>
 
   <!-- SCREEN 1: ENTER HOUSE CODE -->
   <div id="screen-join" class="card active">
@@ -194,9 +261,13 @@
 
   <!-- SCREEN 5: APPROVED! MAIN CONTROL (EXPERIMENTAL / SPATIAL UI) -->
   <div id="screen-experimental" class="glass-card">
+    <button class="mute-btn" id="mute-btn" onclick="toggleMute()">🔊</button>
+    
+    <div class="mic-btn" id="mic-btn">🎙️<div id="mic-status"></div></div>
+
     <h1 style="text-shadow: 0 0 15px rgba(250, 204, 21, 0.5); font-size: 32px;">TULSI SPATIAL</h1>
-    <div id="exp-door-status" style="font-size: 18px; font-weight: bold; margin-bottom: 10px; color: #e2e8f0; text-shadow: 0 2px 5px rgba(0,0,0,0.5);">DOOR: Checking...</div>
-    <div id="exp-access-type" style="color: #fcd34d; margin-bottom: 10px; font-size: 12px; text-shadow: 0 1px 3px rgba(0,0,0,0.5);"></div>
+    <div id="exp-door-status" style="font-size: 18px; font-weight: bold; margin-bottom: 10px; color: #ffffff; text-shadow: 0 2px 5px rgba(0,0,0,0.8);">DOOR: Checking...</div>
+    <div id="exp-access-type" style="color: #fcd34d; margin-bottom: 10px; font-size: 12px; text-shadow: 0 1px 3px rgba(0,0,0,0.8);"></div>
 
     <!-- 3D Digital Twin Door -->
     <div class="door-container">
@@ -215,7 +286,12 @@
       <div class="dial-label" id="dial-label">Spin to Unlock<br><span style="font-size:9px; font-weight:normal;">(Right to Unlock, Left to Lock)</span></div>
     </div>
     
-    <button class="btn" style="background: rgba(255,255,255,0.1); color: white; backdrop-filter: blur(5px); font-size: 12px; margin-top: 20px;" onclick="goToModeSelect()">Switch Interface</button>
+    <div style="display:flex; justify-content:space-between; gap:10px;">
+        <button class="btn" style="background: rgba(255,255,255,0.1); color: white; backdrop-filter: blur(5px); font-size: 11px; margin-top: 10px; flex:1;" onclick="forceSunsetView()">🌅 Force Sunset</button>
+        <button class="btn" style="background: rgba(255,255,255,0.1); color: white; backdrop-filter: blur(5px); font-size: 11px; margin-top: 10px; flex:1;" onclick="goToModeSelect()">🔄 Switch Interface</button>
+    </div>
+
+    <div class="shake-helper">SHAKE PHONE TO LOCK</div>
   </div>
 
   <!-- SCREEN ADMIN DASHBOARD -->
@@ -251,7 +327,7 @@
     <button class="btn btn-logout" onclick="window.location.reload()">Exit Admin</button>
   </div>
 
-  <!-- SCREEN ONE-TIME LINK (AIRBNB MODE) -->
+  <!-- SCREEN ONE-TIME LINK -->
   <div id="screen-otp" class="card">
     <h1>TULSI</h1>
     <h2 style="color: #0ea5e9;">Guest Access</h2>
@@ -290,7 +366,7 @@
     let myName = localStorage.getItem('tulsi_my_name') || "Unknown User";
     let currentUserData = null;
     window.isScheduleValid = true;
-    let activeMode = null;
+    window.activeMode = null;
 
     window.showScreen = function(screenId) {
       document.querySelectorAll('.card, .glass-card').forEach(c => c.classList.remove('active'));
@@ -370,7 +446,8 @@
               document.getElementById('screen-mode-select').classList.contains('active') || 
               document.getElementById('screen-pending').classList.contains('active')) {
             alert("Your access has been revoked or expired.");
-            activeMode = null;
+            window.activeMode = null;
+            document.getElementById('spatial-bg').classList.remove('active');
             showScreen('screen-join');
           }
           return;
@@ -389,7 +466,7 @@
         } 
         else if (["perm", "temp", "sched"].includes(currentUserData.status)) {
           
-          if (!activeMode) {
+          if (!window.activeMode) {
              let savedMode = localStorage.getItem('tulsi_preferred_mode');
              if (savedMode) {
                  document.getElementById('remember-mode').checked = true;
@@ -399,9 +476,9 @@
                  showScreen('screen-mode-select');
              }
              connectMQTT();
-          } else if (activeMode === 'practical') {
+          } else if (window.activeMode === 'practical') {
              showScreen('screen-control');
-          } else if (activeMode === 'experimental') {
+          } else if (window.activeMode === 'experimental') {
              showScreen('screen-experimental');
           }
         }
@@ -409,39 +486,15 @@
     }
 
     window.goToModeSelect = function() {
-        activeMode = null; 
+        window.activeMode = null; 
+        document.getElementById('spatial-bg').classList.remove('active'); // Hide spatial background
         showScreen('screen-mode-select');
         let savedMode = localStorage.getItem('tulsi_preferred_mode');
         document.getElementById('remember-mode').checked = (savedMode !== null);
     };
 
-    // SPATIAL UI GYROSCOPE LOGIC
-    function handleGyro(e) {
-       if (activeMode !== 'experimental') return;
-       const x = e.gamma ? e.gamma / 2 : 0; 
-       const y = e.beta ? (e.beta - 45) / 2 : 0; 
-       const expScreen = document.getElementById('screen-experimental');
-       if (expScreen.classList.contains('active')) {
-           expScreen.style.transform = `rotateY(${x}deg) rotateX(${-y}deg)`;
-       }
-    }
-
-    window.requestGyro = function() {
-       if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-           DeviceOrientationEvent.requestPermission()
-               .then(permissionState => {
-                   if (permissionState === 'granted') window.addEventListener('deviceorientation', handleGyro);
-               })
-               .catch(console.error);
-       } else {
-           window.addEventListener('deviceorientation', handleGyro);
-       }
-    };
-
     window.selectMode = function(mode) {
-        activeMode = mode;
-        
-        // Save or clear preference based on checkbox
+        window.activeMode = mode;
         if (document.getElementById('remember-mode').checked) {
             localStorage.setItem('tulsi_preferred_mode', mode);
         } else {
@@ -449,18 +502,19 @@
         }
         
         if (mode === 'practical') {
+            document.getElementById('spatial-bg').classList.remove('active');
             showScreen('screen-control');
         } else {
+            document.getElementById('spatial-bg').classList.add('active');
+            window.updateBackground();
             showScreen('screen-experimental');
-            requestGyro(); 
+            window.requestSensors(); 
         }
     };
 
     setInterval(() => {
       if (!currentUserData) return;
-      
       let accessText = "";
-      
       if (currentUserData.status === "temp") {
         window.isScheduleValid = true;
         if (currentUserData.expiresAt > 0) {
@@ -501,16 +555,12 @@
 
       document.getElementById("access-type").innerText = accessText;
       document.getElementById("exp-access-type").innerText = accessText;
-
     }, 1000);
 
     window.logActionToDB = async function(action) {
       await addDoc(collection(db, "logs"), { deviceId: deviceId, name: myName, action: action, timestamp: Date.now() });
     };
 
-    // ==========================================
-    // BIOMETRICS (WebAuthn) LOGIC
-    // ==========================================
     function bufferToBase64(buffer) {
         let binary = ''; const bytes = new Uint8Array(buffer);
         for (let i = 0; i < bytes.byteLength; i++) { binary += String.fromCharCode(bytes[i]); }
@@ -700,11 +750,9 @@
       document.getElementById('logs-modal').style.display = 'block';
       document.getElementById('logs-title').innerText = "Logs for " + name;
       document.getElementById('logs-content').innerHTML = "Loading...";
-
       const qLogs = query(collection(db, "logs"), where("deviceId", "==", devId));
       const querySnapshot = await getDocs(qLogs);
-      let html = "";
-      let logsArr = [];
+      let html = ""; let logsArr = [];
       querySnapshot.forEach((doc) => logsArr.push(doc.data()));
       logsArr.sort((a, b) => b.timestamp - a.timestamp);
       
@@ -719,23 +767,217 @@
       }
       document.getElementById('logs-content').innerHTML = html;
     };
-
-    // Secret Admin Triggers
-    let tapCount = 0, tapTimer;
-    document.addEventListener('click', (e) => {
-      if (e.clientX < 100 && e.clientY < 100) {
-        tapCount++; clearTimeout(tapTimer);
-        if (tapCount >= 5) { tapCount = 0; if (prompt("Admin PIN:") === "112233") { loadAdminDashboard(); connectMQTT(); } }
-        else tapTimer = setTimeout(() => { tapCount = 0; }, 1500);
-      }
-    });
-    document.addEventListener('keydown', (e) => {
-      if (e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a')) { if (prompt("Admin PIN:") === "112233") { loadAdminDashboard(); connectMQTT(); } }
-    });
   </script>
 
-  <!-- SPATIAL HAPTIC DIAL LOGIC -->
+  <!-- SPATIAL LOGIC: SOUNDS, MIC, SHAKE, DIAL, PARTICLES, GYRO -->
   <script>
+    // --- Audio System ---
+    let isMuted = false;
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    let audioCtx;
+    
+    function initAudio() { if(!audioCtx) audioCtx = new AudioContext(); }
+
+    window.toggleMute = function() {
+        isMuted = !isMuted;
+        document.getElementById('mute-btn').innerText = isMuted ? "🔇" : "🔊";
+    };
+
+    function playClickSound() {
+        if(isMuted) return;
+        initAudio();
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.05);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.05);
+    }
+
+    window.playUnlockSound = function() {
+        if(isMuted) return;
+        initAudio();
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.8, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+        
+        setTimeout(() => {
+            const osc2 = audioCtx.createOscillator();
+            const gain2 = audioCtx.createGain();
+            osc2.connect(gain2); gain2.connect(audioCtx.destination);
+            osc2.type = 'square';
+            osc2.frequency.setValueAtTime(400, audioCtx.currentTime);
+            osc2.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.15);
+            gain2.gain.setValueAtTime(0.6, audioCtx.currentTime);
+            gain2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+            osc2.start(); osc2.stop(audioCtx.currentTime + 0.15);
+        }, 100);
+    }
+
+    window.playLockSound = function() {
+        if(isMuted) return;
+        initAudio();
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(100, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.7, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.15);
+    }
+
+    // --- Particle System ---
+    window.createParticles = function() {
+        const container = document.getElementById('screen-experimental');
+        for(let i=0; i<40; i++) {
+            let p = document.createElement('div');
+            p.className = 'particle';
+            container.appendChild(p);
+            let angle = Math.random() * Math.PI * 2;
+            let dist = Math.random() * 120 + 50;
+            let tx = Math.cos(angle) * dist;
+            let ty = Math.sin(angle) * dist;
+            
+            p.style.left = '50%'; p.style.top = '40%'; // roughly around door/dial
+            
+            requestAnimationFrame(() => {
+                p.style.transform = `translate(${tx}px, ${ty}px) scale(0)`;
+                p.style.opacity = '0';
+            });
+            setTimeout(() => p.remove(), 1000);
+        }
+    }
+
+    // --- Sunset Dynamic Background ---
+    let forceSunset = false;
+    window.updateBackground = function() {
+        const bg = document.getElementById('spatial-bg');
+        if (forceSunset) {
+            bg.className = 'spatial-bg active sunset';
+            document.getElementById('moon-stars').style.display = 'block';
+            return;
+        }
+        let hr = new Date().getHours();
+        if (hr >= 17 && hr <= 19) {
+            bg.className = 'spatial-bg active sunset';
+            document.getElementById('moon-stars').style.display = 'block';
+        } else if (hr > 19 || hr < 6) {
+            bg.className = 'spatial-bg active night';
+            document.getElementById('moon-stars').style.display = 'block';
+        } else {
+            bg.className = 'spatial-bg active day';
+            document.getElementById('moon-stars').style.display = 'none';
+        }
+    }
+    
+    window.forceSunsetView = function() {
+        forceSunset = !forceSunset;
+        window.updateBackground();
+    }
+    setInterval(() => { if(window.activeMode === 'experimental' && !forceSunset) window.updateBackground(); }, 60000);
+
+    // --- Voice Recognition (Push to Talk) ---
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition;
+    const micBtn = document.getElementById('mic-btn');
+    const micStatus = document.getElementById('mic-status');
+
+    if(SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.lang = 'en-US';
+        recognition.onresult = async function(event) {
+            const transcript = event.results[0][0].transcript.toLowerCase();
+            if(transcript.includes("unlock") || transcript.includes("open")) {
+                micStatus.innerText = "Recognized: UNLOCK";
+                await window.userSendUnlock();
+            } else if(transcript.includes("lock") || transcript.includes("close")) {
+                micStatus.innerText = "Recognized: LOCK";
+                await window.userSendLock();
+            } else {
+                micStatus.innerText = "Say 'Unlock' or 'Lock'";
+            }
+        };
+        recognition.onerror = function() { micStatus.innerText = "Voice not clear"; }
+    }
+    
+    function startMic(e) {
+        e.preventDefault();
+        if(document.getElementById("exp-door-status").innerText.includes("OFFLINE")) return;
+        if(!window.isScheduleValid) return;
+        if(!recognition) { alert("Voice control not supported on this browser."); return; }
+        micStatus.innerText = "Listening...";
+        try { recognition.start(); } catch(e){}
+    }
+    function stopMic(e) {
+        e.preventDefault();
+        if(recognition) recognition.stop();
+        setTimeout(() => { micStatus.innerText = ""; }, 2000);
+    }
+
+    micBtn.addEventListener('mousedown', startMic);
+    micBtn.addEventListener('mouseup', stopMic);
+    micBtn.addEventListener('mouseleave', stopMic);
+    micBtn.addEventListener('touchstart', startMic, {passive: false});
+    micBtn.addEventListener('touchend', stopMic);
+
+    // --- Gyroscope and Accelerometer (Shake to Lock) ---
+    let lastShakeTime = 0;
+    function handleGyro(e) {
+       if (window.activeMode !== 'experimental') return;
+       const x = e.gamma ? e.gamma / 2 : 0; 
+       const y = e.beta ? (e.beta - 45) / 2 : 0; 
+       const expScreen = document.getElementById('screen-experimental');
+       if (expScreen.classList.contains('active')) {
+           expScreen.style.transform = `rotateY(${x}deg) rotateX(${-y}deg)`;
+       }
+    }
+    function handleShake(e) {
+       if (window.activeMode !== 'experimental') return;
+       const acc = e.acceleration || e.accelerationIncludingGravity;
+       if(!acc) return;
+       const totalAcc = Math.abs(acc.x) + Math.abs(acc.y) + Math.abs(acc.z);
+       if (totalAcc > 20) { 
+           let now = Date.now();
+           if(now - lastShakeTime > 2000) { 
+               lastShakeTime = now;
+               window.userSendLock();
+           }
+       }
+    }
+
+    window.requestSensors = function() {
+       if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+           DeviceOrientationEvent.requestPermission().then(permissionState => {
+               if (permissionState === 'granted') window.addEventListener('deviceorientation', handleGyro);
+           }).catch(console.error);
+       } else {
+           window.addEventListener('deviceorientation', handleGyro);
+       }
+       if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+           DeviceMotionEvent.requestPermission().then(permissionState => {
+               if (permissionState === 'granted') window.addEventListener('devicemotion', handleShake);
+           }).catch(console.error);
+       } else {
+           window.addEventListener('devicemotion', handleShake);
+       }
+    };
+
+    // --- Haptic Dial ---
     const dial = document.getElementById('vault-dial');
     const knobContainer = document.getElementById('dial-knob-container');
     let isSpinning = false;
@@ -748,18 +990,13 @@
         const centerY = rect.top + rect.height / 2;
         let clientX, clientY;
         if (e.touches && e.touches.length > 0) {
-            clientX = e.touches[0].clientX;
-            clientY = e.touches[0].clientY;
+            clientX = e.touches[0].clientX; clientY = e.touches[0].clientY;
         } else if (e.changedTouches && e.changedTouches.length > 0) {
-            clientX = e.changedTouches[0].clientX;
-            clientY = e.changedTouches[0].clientY;
+            clientX = e.changedTouches[0].clientX; clientY = e.changedTouches[0].clientY;
         } else {
-            clientX = e.clientX;
-            clientY = e.clientY;
+            clientX = e.clientX; clientY = e.clientY;
         }
-        const dx = clientX - centerX;
-        const dy = clientY - centerY;
-        let angle = Math.atan2(dy, dx) * (180 / Math.PI) + 90;
+        let angle = Math.atan2(clientY - centerY, clientX - centerX) * (180 / Math.PI) + 90;
         if (angle < 0) angle += 360;
         return angle;
     }
@@ -767,6 +1004,7 @@
     function startSpin(e) {
         if(document.getElementById("exp-door-status").innerText.includes("OFFLINE")) return;
         if(!window.isScheduleValid) return; 
+        initAudio(); // Initialize audio context on first user gesture
         isSpinning = true;
     }
 
@@ -775,12 +1013,11 @@
         e.preventDefault(); 
         let angle = calculateAngle(e);
         let diff = Math.abs(angle - currentAngle);
-        
         if (diff > 12) {
             if (navigator.vibrate) navigator.vibrate(10); 
+            playClickSound();
             currentAngle = angle;
         }
-        
         knobContainer.style.transform = `rotate(${angle}deg)`;
         
         if (angle > 45 && angle < 135) {
@@ -793,7 +1030,7 @@
             targetAction = "LOCK";
         } else {
             document.getElementById('dial-label').innerHTML = "Spin to Unlock<br><span style='font-size:9px; font-weight:normal;'>(Right to Unlock, Left to Lock)</span>";
-            document.getElementById('dial-label').style.color = "#94a3b8";
+            document.getElementById('dial-label').style.color = "#cbd5e1";
             targetAction = null;
         }
     }
@@ -802,11 +1039,10 @@
         if (!isSpinning) return;
         isSpinning = false;
         knobContainer.style.transform = `rotate(0deg)`; 
-        
         let actionToRun = targetAction;
         
         document.getElementById('dial-label').innerHTML = "Spin to Unlock<br><span style='font-size:9px; font-weight:normal;'>(Right to Unlock, Left to Lock)</span>";
-        document.getElementById('dial-label').style.color = "#94a3b8";
+        document.getElementById('dial-label').style.color = "#cbd5e1";
         targetAction = null;
 
         if (actionToRun === "UNLOCK") {
@@ -831,8 +1067,6 @@
       if (mqttClient) return; 
       var broker = "broker.hivemq.com";
       var port = 8884; 
-      
-      var topic_command = "my_awesome_room/door_lock/cmd_v2";
       var topic_state = "my_awesome_room/door_lock/state";
       var topic_admin = "my_awesome_room/door_lock/admin_state";
       
@@ -846,26 +1080,33 @@
             document.getElementById("door-status").style.color = "#94a3b8";
             document.getElementById("exp-door-status").innerText = "DOOR: OFFLINE";
             document.getElementById("exp-door-status").style.color = "#94a3b8";
-            
             document.getElementById("btnUnlock").disabled = true;
             document.getElementById("btnLock").disabled = true;
           } else {
             let txt = "DOOR: " + state;
             let col = (state === "LOCKED") ? "#ef4444" : "#22c55e";
 
+            // Track state change for audio/visual fx in experimental mode
+            const doorPanel = document.getElementById("exp-door-panel");
+            let wasLocked = !doorPanel.classList.contains("open");
+            let isNowLocked = (state === "LOCKED");
+
             document.getElementById("door-status").innerText = txt;
             document.getElementById("door-status").style.color = col;
-            
             document.getElementById("exp-door-status").innerText = txt;
             document.getElementById("exp-door-status").style.color = col;
 
-            const doorPanel = document.getElementById("exp-door-panel");
-            if (state === "LOCKED") {
+            if (isNowLocked) {
                 doorPanel.classList.remove("open");
                 doorPanel.style.background = "linear-gradient(135deg, #ef4444 0%, #991b1b 100%)";
+                if(!wasLocked && window.activeMode === 'experimental') window.playLockSound();
             } else {
                 doorPanel.classList.add("open");
                 doorPanel.style.background = "linear-gradient(135deg, #22c55e 0%, #166534 100%)";
+                if(wasLocked && window.activeMode === 'experimental') {
+                    window.playUnlockSound();
+                    window.createParticles();
+                }
             }
             
             if(window.isScheduleValid) {

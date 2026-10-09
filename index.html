@@ -41,53 +41,66 @@
     .log-entry { font-size: 12px; border-bottom: 1px solid #333; padding: 5px 0; text-align: left; color: #e5e7eb;}
 
     /* ==========================================
+       LIGHT MODE STYLES
+       ========================================== */
+    body.light-mode { background: #e0e5ec; color: #4a5568; }
+    .light-mode .card, .light-mode .glass-card {
+        background: #e0e5ec;
+        box-shadow: 9px 9px 16px rgba(163,177,198,0.6), -9px -9px 16px rgba(255,255,255,0.5);
+        border: 1px solid #d1d9e6;
+    }
+    .light-mode input {
+        background: #e0e5ec; color: #4a5568;
+        box-shadow: inset 6px 6px 10px 0 rgba(163,177,198,0.7), inset -6px -6px 10px 0 rgba(255,255,255,0.8);
+    }
+    .light-mode .btn, .light-mode .btn-small {
+        background: #e0e5ec; color: #4a5568;
+        box-shadow: 6px 6px 10px 0 rgba(163,177,198,0.7), -6px -6px 10px 0 rgba(255,255,255,0.8);
+    }
+    .light-mode .btn:active, .light-mode .btn-small:active {
+        box-shadow: inset 6px 6px 10px 0 rgba(163,177,198,0.7), inset -6px -6px 10px 0 rgba(255,255,255,0.8);
+    }
+    .light-mode .list-box {
+        background: #e0e5ec;
+        box-shadow: inset 6px 6px 10px 0 rgba(163,177,198,0.7), inset -6px -6px 10px 0 rgba(255,255,255,0.8);
+    }
+    .light-mode h1, .light-mode h2, .light-mode h3, .light-mode #door-status { color: #ff5e00; text-shadow: none; }
+    
+    .light-mode .dial-container {
+        background: #e0e5ec; border-color: #d1d9e6;
+        box-shadow: inset 9px 9px 16px rgba(163,177,198,0.6), inset -9px -9px 16px rgba(255,255,255,0.5);
+    }
+    .light-mode .door-frame {
+        background: #e0e5ec; border-color: #d1d9e6;
+        box-shadow: inset 6px 6px 10px rgba(163,177,198,0.7), inset -6px -6px 10px rgba(255,255,255,0.8);
+    }
+    .light-mode .door-panel {
+        background: #e0e5ec; border-color: #d1d9e6;
+        box-shadow: 6px 6px 10px rgba(163,177,198,0.7), -6px -6px 10px rgba(255,255,255,0.8);
+    }
+    .light-mode .door-panel.open {
+        background: #d1d9e6; box-shadow: inset 6px 6px 10px rgba(163,177,198,0.7); border-color: #ff5e00;
+    }
+    .light-mode .door-slider-track {
+        background: #d1d9e6; box-shadow: inset 2px 2px 5px rgba(163,177,198,0.6), inset -2px -2px 5px rgba(255,255,255,0.8);
+    }
+    .light-mode .mic-btn, .light-mode .mute-btn {
+        background: #e0e5ec; color: #ff5e00; border-color: #d1d9e6;
+        box-shadow: 6px 6px 10px rgba(163,177,198,0.7), -6px -6px 10px rgba(255,255,255,0.8);
+    }
+    .light-mode .mic-btn:active, .light-mode .mute-btn:active {
+        box-shadow: inset 6px 6px 10px rgba(163,177,198,0.7), inset -6px -6px 10px rgba(255,255,255,0.8); background: #e0e5ec;
+    }
+    .light-mode .dial-label { color: #4a5568; text-shadow: none; }
+
+    /* ==========================================
        EXPERIMENTAL / SPATIAL UI STYLES
        ========================================== */
-       
-    /* Dynamic Backgrounds */
-    .spatial-bg {
-        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1;
-        transition: background 2s ease, opacity 1s;
-        opacity: 0; pointer-events: none;
-    }
-    .spatial-bg.active { opacity: 1; }
-    
-    .spatial-bg.sunset {
-        background: linear-gradient(to bottom, #1e293b 0%, #31104f 20%, #7e5296 45%, #ff9a9e 60%, #e11d48 75%, #f97316 85%, #facc15 100%);
-    }
-    .spatial-bg.night {
-        background: linear-gradient(to bottom, #020617 0%, #0f172a 50%, #1e293b 100%);
-    }
-    .spatial-bg.day {
-        background: linear-gradient(to bottom, #38bdf8 0%, #0ea5e9 50%, #bae6fd 100%);
-    }
 
-    /* Stars and Moon for Sunset/Night */
-    .moon-stars { display: none; position: absolute; width: 100%; height: 100%; }
-    .stars {
-        position: absolute; width: 100%; height: 100%;
-        background-image: radial-gradient(white, rgba(255,255,255,.2) 1px, transparent 2px), radial-gradient(white, rgba(255,255,255,.15) 1px, transparent 2px);
-        background-size: 100px 100px, 150px 150px;
-        background-position: 0 0, 40px 60px;
-        opacity: 0.3;
-        animation: twinkle 3s infinite alternate;
-    }
-    .moon {
-        position: absolute; top: 12%; right: 15%; width: 40px; height: 40px;
-        background: rgba(255,255,255,0.7);
-        border-radius: 50%;
-        box-shadow: 0 0 25px rgba(255,255,255,0.6);
-        opacity: 0.5;
-    }
-    @keyframes twinkle { 0% { opacity: 0.2; } 100% { opacity: 0.7; } }
-
-    /* Main Glass Card */
+    /* Main Glass Card -> Neo-Glow Card */
     .glass-card {
-        background: rgba(255, 255, 255, 0.05);
-        backdrop-filter: blur(25px);
-        -webkit-backdrop-filter: blur(25px);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        box-shadow: 0 25px 45px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(255,255,255,0.05);
+        background: #272a30; border: 1px solid #333;
+        box-shadow: 10px 10px 20px rgba(0,0,0,0.6), -10px -10px 20px rgba(255,255,255,0.05);
         border-radius: 30px;
         padding: 30px;
         margin: 20px auto;
@@ -102,42 +115,39 @@
 
     /* Mute Button */
     .mute-btn {
-        position: absolute; top: 20px; right: 20px;
-        background: rgba(255,255,255,0.1);
-        border: 1px solid rgba(255,255,255,0.2);
-        color: white; border-radius: 50%;
+        position: absolute; top: 20px; left: 20px;
+        background: #272a30; border: 1px solid #333;
+        color: #e5e7eb; border-radius: 50%;
         width: 35px; height: 35px; font-size: 16px;
         cursor: pointer; display: flex; justify-content: center; align-items: center;
-        z-index: 20;
+        z-index: 20; box-shadow: 4px 4px 8px rgba(0,0,0,0.5), -4px -4px 8px rgba(255,255,255,0.05);
     }
 
     /* Mic Button (Push to Talk) */
     .mic-btn {
         position: absolute; top: 50%; left: -15px; transform: translateY(-50%);
-        background: rgba(255,255,255,0.15);
-        border: 1px solid rgba(255,255,255,0.3);
-        color: white; border-radius: 50%;
+        background: #272a30; border: 1px solid #333;
+        color: #ff5e00; border-radius: 50%;
         width: 45px; height: 45px; font-size: 20px;
         cursor: pointer; display: flex; justify-content: center; align-items: center;
-        z-index: 20; box-shadow: 0 0 15px rgba(0,0,0,0.5);
-        transition: 0.2s;
-        touch-action: none; /* Prevent scroll on hold */
+        z-index: 20; box-shadow: 6px 6px 15px rgba(0,0,0,0.5), -6px -6px 15px rgba(255,255,255,0.05);
+        transition: 0.2s; touch-action: none;
     }
-    .mic-btn:active { background: #ef4444; box-shadow: 0 0 20px #ef4444; transform: translateY(-50%) scale(0.9); }
+    .mic-btn:active { box-shadow: inset 4px 4px 8px rgba(0,0,0,0.5), inset -4px -4px 8px rgba(255,255,255,0.05); transform: translateY(-50%) scale(0.9); color: #ff5e00; }
 
     #mic-status {
         position: absolute; top: 50%; left: 35px; transform: translateY(-50%);
-        font-size: 10px; color: #facc15; font-weight: bold; width: 60px;
-        text-align: left; text-shadow: 0 1px 3px black; pointer-events: none;
+        font-size: 10px; color: #ff5e00; font-weight: bold; width: 60px;
+        text-align: left; pointer-events: none; text-shadow: none;
     }
 
     /* Success Particles */
     .particle {
         position: absolute;
         width: 8px; height: 8px;
-        background: #22c55e;
+        background: #ff5e00;
         border-radius: 50%;
-        box-shadow: 0 0 10px #22c55e, 0 0 20px #22c55e;
+        box-shadow: 0 0 10px #ff5e00, 0 0 20px #ff5e00;
         pointer-events: none;
         transition: all 0.8s cubic-bezier(0.1, 0.8, 0.3, 1);
         z-index: 50;
@@ -147,8 +157,8 @@
     /* Shake Helper Text */
     .shake-helper {
         position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%);
-        font-size: 10px; color: rgba(255,255,255,0.4); font-weight: bold;
-        letter-spacing: 1px; pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        font-size: 10px; color: #9ca3af; font-weight: bold;
+        letter-spacing: 1px; pointer-events: none;
     }
 
     /* 3D Digital Twin Door */
@@ -156,61 +166,63 @@
         width: 140px; height: 220px; perspective: 1200px; margin: 25px auto;
     }
     .door-frame {
-        width: 100%; height: 100%; border: 10px solid rgba(51, 65, 85, 0.8);
-        border-bottom: none; position: relative; background: rgba(0,0,0,0.5);
-        box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+        width: 100%; height: 100%; border: 10px solid #272a30;
+        border-bottom: none; position: relative; background: #1e2024;
+        box-shadow: inset 4px 4px 10px rgba(0,0,0,0.6), inset -4px -4px 10px rgba(255,255,255,0.05);
     }
     .door-panel {
-        width: 100%; height: 100%;
-        background: linear-gradient(135deg, #ef4444 0%, #991b1b 100%);
+        width: 100%; height: 100%; background: #272a30;
         transform-origin: left;
         transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1), background 0.5s;
-        box-shadow: inset -5px 0 15px rgba(0,0,0,0.6);
+        box-shadow: inset -4px 0 10px rgba(0,0,0,0.6), 4px 4px 15px rgba(0,0,0,0.5);
     }
     .door-panel.open {
-        transform: rotateY(-85deg);
-        background: linear-gradient(135deg, #22c55e 0%, #166534 100%);
+        transform: rotateY(-85deg); background: #1e2024;
+        border-color: #ff5e00; box-shadow: inset 10px 0 20px rgba(0,0,0,0.5);
     }
-    .door-knob {
-        width: 14px; height: 14px;
-        background: radial-gradient(circle, #fcd34d 0%, #b45309 100%);
-        border-radius: 50%; position: absolute; right: 12px; top: 50%;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.8);
+    .door-slider-track {
+        width: 60px; height: 16px; background: #1e2024; border-radius: 8px;
+        position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+        box-shadow: inset 2px 2px 5px rgba(0,0,0,0.6), inset -2px -2px 5px rgba(255,255,255,0.05);
     }
+    .door-slider-thumb {
+        width: 24px; height: 24px; background: #ff5e00; border-radius: 50%;
+        position: absolute; top: -4px; left: -4px;
+        box-shadow: 0 0 10px #ff5e00, inset 0 0 5px rgba(255,255,255,0.5);
+        transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .door-panel.open .door-slider-thumb { left: 40px; background: #22c55e; box-shadow: 0 0 10px #22c55e; }
 
     /* Haptic Vault Dial */
     .dial-container {
         width: 160px; height: 160px; border-radius: 50%;
-        background: rgba(15, 23, 42, 0.6); margin: 30px auto 40px auto;
-        position: relative; border: 6px solid rgba(255, 255, 255, 0.15);
+        background: #1e2024; margin: 30px auto 40px auto;
+        position: relative; border: 6px solid #272a30;
         display: flex; justify-content: center; align-items: center;
         touch-action: none;
-        box-shadow: inset 0 0 25px rgba(0,0,0,0.7), 0 0 15px rgba(0,0,0,0.3);
+        box-shadow: inset 10px 10px 20px rgba(0,0,0,0.6), inset -10px -10px 20px rgba(255,255,255,0.05);
     }
     .dial-knob-container {
         position: absolute; width: 100%; height: 100%; border-radius: 50%;
     }
     .dial-knob {
-        width: 34px; height: 34px; background: #0ea5e9; border-radius: 50%;
+        width: 34px; height: 34px; background: #ff5e00; border-radius: 50%;
         position: absolute; top: -17px; left: 50%; transform: translateX(-50%);
-        box-shadow: 0 0 15px #0ea5e9, inset 0 0 5px rgba(255,255,255,0.8);
-        border: 2px solid #38bdf8;
+        box-shadow: 0 0 15px #ff5e00, inset 0 0 5px rgba(255,255,255,0.8);
+        border: 2px solid #ff5e00;
     }
     .dial-label {
-        font-size: 13px; color: #cbd5e1; pointer-events: none; font-weight: bold;
-        text-shadow: 0 2px 5px rgba(0,0,0,0.9);
+        font-size: 13px; color: #9ca3af; pointer-events: none; font-weight: bold; text-align: center;
     }
   </style>
 </head>
 <body>
 
-  <!-- Dynamic Background for Spatial Mode -->
-  <div id="spatial-bg" class="spatial-bg">
-    <div id="moon-stars" class="moon-stars">
-      <div class="stars"></div>
-      <div class="moon"></div>
-    </div>
-  </div>
+  <!-- Light Mode Toggle -->
+  <button id="theme-btn" onclick="toggleTheme()" style="position:fixed; top:20px; right:20px; z-index:999; background:transparent; border:none; font-size:24px; cursor:pointer;">☀️</button>
+
+  <!-- Dummy background to prevent JS crash when it tries to modify its classes -->
+  <div id="spatial-bg" style="display:none;"></div>
 
   <!-- SCREEN 1: ENTER HOUSE CODE -->
   <div id="screen-join" class="card active">
@@ -275,7 +287,7 @@
     <div class="door-container">
       <div class="door-frame">
         <div class="door-panel" id="exp-door-panel">
-          <div class="door-knob"></div>
+          <div class="door-slider-track"><div class="door-slider-thumb"></div></div>
         </div>
       </div>
     </div>
@@ -288,9 +300,8 @@
       <div class="dial-label" id="dial-label">Spin to Unlock<br><span style="font-size:9px; font-weight:normal;">(Right to Unlock, Left to Lock)</span></div>
     </div>
     
-    <div style="display:flex; justify-content:space-between; gap:10px;">
-        <button class="btn" style="background: rgba(255,255,255,0.1); color: white; backdrop-filter: blur(5px); font-size: 11px; margin-top: 10px; flex:1;" onclick="forceSunsetView()">🌅 Force Sunset</button>
-        <button class="btn" style="background: rgba(255,255,255,0.1); color: white; backdrop-filter: blur(5px); font-size: 11px; margin-top: 10px; flex:1;" onclick="goToModeSelect()">🔄 Switch Interface</button>
+    <div style="display:flex; justify-content:center; gap:10px;">
+        <button class="btn btn-logout" style="font-size: 11px; margin-top: 10px; width: 100%;" onclick="goToModeSelect()">🔄 Switch Interface</button>
     </div>
 
     <div class="shake-helper">SHAKE PHONE TO LOCK</div>
@@ -514,7 +525,6 @@
             showScreen('screen-control');
         } else {
             document.getElementById('spatial-bg').classList.add('active');
-            window.updateBackground();
             showScreen('screen-experimental');
             window.requestSensors(); 
         }
@@ -883,33 +893,25 @@
         }
     }
 
-    // --- Sunset Dynamic Background ---
-    let forceSunset = false;
-    window.updateBackground = function() {
-        const bg = document.getElementById('spatial-bg');
-        if (forceSunset) {
-            bg.className = 'spatial-bg active sunset';
-            document.getElementById('moon-stars').style.display = 'block';
-            return;
-        }
-        let hr = new Date().getHours();
-        if (hr >= 17 && hr <= 19) {
-            bg.className = 'spatial-bg active sunset';
-            document.getElementById('moon-stars').style.display = 'block';
-        } else if (hr > 19 || hr < 6) {
-            bg.className = 'spatial-bg active night';
-            document.getElementById('moon-stars').style.display = 'block';
+    // --- Theme Toggle ---
+    window.toggleTheme = function() {
+        const body = document.body;
+        const btn = document.getElementById('theme-btn');
+        if (body.classList.contains('light-mode')) {
+            body.classList.remove('light-mode');
+            btn.innerText = '☀️';
+            localStorage.setItem('tulsi_theme', 'dark');
         } else {
-            bg.className = 'spatial-bg active day';
-            document.getElementById('moon-stars').style.display = 'none';
+            body.classList.add('light-mode');
+            btn.innerText = '🌙';
+            localStorage.setItem('tulsi_theme', 'light');
         }
     }
-    
-    window.forceSunsetView = function() {
-        forceSunset = !forceSunset;
-        window.updateBackground();
+    // Load saved theme
+    if(localStorage.getItem('tulsi_theme') === 'light') {
+        document.body.classList.add('light-mode');
+        document.getElementById('theme-btn').innerText = '🌙';
     }
-    setInterval(() => { if(window.activeMode === 'experimental' && !forceSunset) window.updateBackground(); }, 60000);
 
     // --- Voice Recognition (Push to Talk) ---
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1120,11 +1122,9 @@
 
             if (isNowLocked) {
                 doorPanel.classList.remove("open");
-                doorPanel.style.background = "linear-gradient(135deg, #ef4444 0%, #991b1b 100%)";
                 if(!wasLocked && window.activeMode === 'experimental') window.playLockSound();
             } else {
                 doorPanel.classList.add("open");
-                doorPanel.style.background = "linear-gradient(135deg, #22c55e 0%, #166534 100%)";
                 if(wasLocked && window.activeMode === 'experimental') {
                     window.playUnlockSound();
                     window.createParticles();

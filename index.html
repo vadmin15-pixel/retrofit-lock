@@ -300,6 +300,12 @@
     <div id="admin-lockdown-status" style="color: #facc15; font-size: 12px; margin-bottom: 15px;">Web Access: NORMAL</div>
     
     <div style="background: #0f172a; padding: 10px; border-radius: 8px; margin-bottom: 15px; text-align: left; font-size: 14px;">
+      <h3 style="margin:0 0 10px 0; color:#10b981;">Hardware Diagnostics 📶</h3>
+      <p style="margin: 5px 0;">Wi-Fi Signal (RSSI): <span id="admin-rssi" style="font-weight:bold; color:#facc15;">Waiting for ESP32...</span></p>
+      <p style="margin: 5px 0;">Hardware Uptime: <span id="admin-uptime" style="font-weight:bold; color:#facc15;">Waiting for ESP32...</span></p>
+    </div>
+
+    <div style="background: #0f172a; padding: 10px; border-radius: 8px; margin-bottom: 15px; text-align: left; font-size: 14px;">
       <h3 style="margin:0 0 10px 0; color:#0ea5e9;">Security Settings</h3>
       Auto-Lock Timer: 
       <input type="number" id="admin-autolock" style="width: 50px; padding: 5px; color: black; margin:0;" placeholder="0" /> mins
@@ -1082,6 +1088,7 @@
       var port = 8884; 
       var topic_state = "my_awesome_room/door_lock/state";
       var topic_admin = "my_awesome_room/door_lock/admin_state";
+      var topic_telemetry = "my_awesome_room/door_lock/telemetry";
       
       mqttClient = new Paho.MQTT.Client(broker, port, "WebApp-" + Math.floor(Math.random() * 10000));
       mqttClient.onMessageArrived = function(message) {
@@ -1137,6 +1144,21 @@
              document.getElementById("admin-lockdown-status").style.color = "#22c55e";
            }
         }
+        if (message.destinationName === topic_telemetry) {
+           let data = state.split(",");
+           if(data.length === 2) {
+               let rssi = parseInt(data[0]);
+               let upSec = parseInt(data[1]);
+               let signalQual = "Good 📶";
+               if(rssi < -75) signalQual = "Weak ⚠️";
+               if(rssi > -60) signalQual = "Excellent 🚀";
+               let m = Math.floor(upSec / 60); let s = upSec % 60; let h = Math.floor(m / 60); m = m % 60;
+               let rssiEl = document.getElementById("admin-rssi");
+               let upEl = document.getElementById("admin-uptime");
+               if(rssiEl) rssiEl.innerHTML = `${rssi} dBm <span style="color:#22c55e">(${signalQual})</span>`;
+               if(upEl) upEl.innerText = `${h}h ${m}m ${s}s`;
+           }
+        }
       };
 
       mqttClient.connect({
@@ -1146,6 +1168,7 @@
           document.getElementById("exp-door-status").innerText = "Checking hardware status...";
           mqttClient.subscribe(topic_state);
           mqttClient.subscribe(topic_admin);
+          mqttClient.subscribe(topic_telemetry);
         }
       });
     }

@@ -767,6 +767,19 @@
       }
       document.getElementById('logs-content').innerHTML = html;
     };
+
+    // Secret Admin Triggers
+    let tapCount = 0, tapTimer;
+    document.addEventListener('click', (e) => {
+      if (e.clientX < 100 && e.clientY < 100) {
+        tapCount++; clearTimeout(tapTimer);
+        if (tapCount >= 5) { tapCount = 0; if (prompt("Admin PIN:") === "112233") { loadAdminDashboard(); connectMQTT(); } }
+        else tapTimer = setTimeout(() => { tapCount = 0; }, 1500);
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a')) { if (prompt("Admin PIN:") === "112233") { loadAdminDashboard(); connectMQTT(); } }
+    });
   </script>
 
   <!-- SPATIAL LOGIC: SOUNDS, MIC, SHAKE, DIAL, PARTICLES, GYRO -->

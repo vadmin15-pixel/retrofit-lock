@@ -515,6 +515,9 @@
       localStorage.setItem('tulsi_my_name', name);
       // Save selfie to Firebase along with request data
       await setDoc(doc(db, "requests", deviceId), { name: name, device: deviceName, status: "pending", expiresAt: 0, unlocksRemaining: -1, requireBiometrics: true, photo: selfieDataUrl });
+      
+      sendPushNotification("👋 TULSI Alert: New Access Request from " + name);
+      
       stopCamera();
       listenToMyStatus();
     };
@@ -599,7 +602,11 @@
         window.isScheduleValid = true;
         if (currentUserData.expiresAt > 0) {
           let diff = currentUserData.expiresAt - Date.now();
-          if (diff <= 0) { deleteDoc(doc(db, "requests", deviceId)); return; }
+          if (diff <= 0) { 
+              sendPushNotification(`⏳ TULSI Alert: Temporary access for ${myName} has expired.`);
+              deleteDoc(doc(db, "requests", deviceId)); 
+              return; 
+          }
           let hrs = Math.floor(diff / 3600000);
           let mins = Math.floor((diff % 3600000) / 60000);
           accessText = `Guest Access: ${hrs}h ${mins}m remaining`;
@@ -1085,6 +1092,24 @@
 
   <!-- MQTT HARDWARE CONNECTION -->
   <script>
+    window.sendPushNotification = async function(alertMessage) {
+        // ========== NTFY PUSH CONFIGURATION ==========
+        const SECRET_TOPIC = "tulsi_lock_alerts_8842x"; 
+        // =============================================
+
+        if (SECRET_TOPIC === "YOUR_SECRET_CHANNEL_NAME") return; // Skip if not configured yet
+
+        try {
+            await fetch('https://ntfy.sh/' + SECRET_TOPIC, {
+                method: 'POST',
+                body: alertMessage
+            });
+            console.log("Push Alert sent via ntfy!");
+        } catch (err) {
+            console.error("Failed to send Push:", err);
+        }
+    };
+
     var mqttClient;
     window.connectMQTT = function() {
       if (mqttClient) return; 
@@ -1126,16 +1151,25 @@
                     document.getElementById("vault-btn-icon").innerText = "🔒";
                     document.getElementById("vault-btn-label").innerText = "Tap to Unlock";
                 }
-                if(!wasLocked && window.activeMode === 'experimental') window.playLockSound();
+                
+                if (!wasLocked) {
+                    sendPushNotification("🔒 TULSI Alert: The door was just LOCKED.");
+                    if(window.activeMode === 'experimental') window.playLockSound();
+                }
             } else {
                 doorPanel.classList.add("open");
                 if(document.getElementById("vault-btn-icon")) {
                     document.getElementById("vault-btn-icon").innerText = "🔓";
                     document.getElementById("vault-btn-label").innerText = "Tap to Lock";
                 }
-                if(wasLocked && window.activeMode === 'experimental') {
-                    window.playUnlockSound();
-                    window.createParticles();
+                
+                if (wasLocked) {
+                    sendPushNotification("🔓 TULSI Alert: The door was just UNLOCKED.");
+                    
+                    if(window.activeMode === 'experimental') {
+                        window.playUnlockSound();
+                        window.createParticles();
+                    }
                 }
             }
             

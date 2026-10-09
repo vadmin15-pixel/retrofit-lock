@@ -91,7 +91,7 @@
     .light-mode .mic-btn:active, .light-mode .mute-btn:active {
         box-shadow: inset 6px 6px 10px rgba(163,177,198,0.7), inset -6px -6px 10px rgba(255,255,255,0.8); background: #e0e5ec;
     }
-    .light-mode .dial-label { color: #4a5568; text-shadow: none; }
+    .light-mode .vault-btn-label { color: #4a5568; text-shadow: none; }
 
     /* ==========================================
        EXPERIMENTAL / SPATIAL UI STYLES
@@ -180,40 +180,31 @@
         transform: rotateY(-85deg); background: #1e2024;
         border-color: #ff5e00; box-shadow: inset 10px 0 20px rgba(0,0,0,0.5);
     }
-    .door-slider-track {
-        width: 60px; height: 16px; background: #1e2024; border-radius: 8px;
-        position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-        box-shadow: inset 2px 2px 5px rgba(0,0,0,0.6), inset -2px -2px 5px rgba(255,255,255,0.05);
-    }
-    .door-slider-thumb {
-        width: 24px; height: 24px; background: #ff5e00; border-radius: 50%;
-        position: absolute; top: -4px; left: -4px;
+    .door-knob {
+        width: 16px; height: 16px; background: #ff5e00; border-radius: 50%;
+        position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
         box-shadow: 0 0 10px #ff5e00, inset 0 0 5px rgba(255,255,255,0.5);
-        transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        border: 2px solid #ff5e00; transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
-    .door-panel.open .door-slider-thumb { left: 40px; background: #22c55e; box-shadow: 0 0 10px #22c55e; }
+    .door-panel.open .door-knob { background: #22c55e; border-color: #22c55e; box-shadow: 0 0 10px #22c55e; }
 
-    /* Haptic Vault Dial */
-    .dial-container {
+    /* Action Button (Replaces Dial) */
+    .vault-btn-container {
         width: 160px; height: 160px; border-radius: 50%;
         background: #1e2024; margin: 30px auto 40px auto;
         position: relative; border: 6px solid #272a30;
-        display: flex; justify-content: center; align-items: center;
-        touch-action: none;
+        display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 8px;
+        cursor: pointer;
+        box-shadow: 10px 10px 20px rgba(0,0,0,0.6), -10px -10px 20px rgba(255,255,255,0.05);
+        transition: 0.2s;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .vault-btn-container:active {
         box-shadow: inset 10px 10px 20px rgba(0,0,0,0.6), inset -10px -10px 20px rgba(255,255,255,0.05);
+        transform: scale(0.95);
     }
-    .dial-knob-container {
-        position: absolute; width: 100%; height: 100%; border-radius: 50%;
-    }
-    .dial-knob {
-        width: 34px; height: 34px; background: #ff5e00; border-radius: 50%;
-        position: absolute; top: -17px; left: 50%; transform: translateX(-50%);
-        box-shadow: 0 0 15px #ff5e00, inset 0 0 5px rgba(255,255,255,0.8);
-        border: 2px solid #ff5e00;
-    }
-    .dial-label {
-        font-size: 13px; color: #9ca3af; pointer-events: none; font-weight: bold; text-align: center;
-    }
+    .vault-btn-icon { font-size: 32px; transition: 0.3s; }
+    .vault-btn-label { font-size: 13px; color: #9ca3af; font-weight: bold; text-align: center; }
   </style>
 </head>
 <body>
@@ -287,17 +278,15 @@
     <div class="door-container">
       <div class="door-frame">
         <div class="door-panel" id="exp-door-panel">
-          <div class="door-slider-track"><div class="door-slider-thumb"></div></div>
+          <div class="door-knob"></div>
         </div>
       </div>
     </div>
 
-    <!-- Haptic Vault Dial -->
-    <div class="dial-container" id="vault-dial">
-      <div class="dial-knob-container" id="dial-knob-container">
-        <div class="dial-knob"></div>
-      </div>
-      <div class="dial-label" id="dial-label">Spin to Unlock<br><span style="font-size:9px; font-weight:normal;">(Right to Unlock, Left to Lock)</span></div>
+    <!-- Action Button (Replaces Dial) -->
+    <div class="vault-btn-container" id="vault-btn" onclick="toggleVaultButton()">
+      <div class="vault-btn-icon" id="vault-btn-icon">🔒</div>
+      <div class="vault-btn-label" id="vault-btn-label">Tap to Unlock</div>
     </div>
     
     <div style="display:flex; justify-content:center; gap:10px;">
@@ -1000,87 +989,21 @@
        }
     };
 
-    // --- Haptic Dial ---
-    const dial = document.getElementById('vault-dial');
-    const knobContainer = document.getElementById('dial-knob-container');
-    let isSpinning = false;
-    let currentAngle = 0;
-    let targetAction = null; 
-
-    function calculateAngle(e) {
-        const rect = dial.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-        let clientX, clientY;
-        if (e.touches && e.touches.length > 0) {
-            clientX = e.touches[0].clientX; clientY = e.touches[0].clientY;
-        } else if (e.changedTouches && e.changedTouches.length > 0) {
-            clientX = e.changedTouches[0].clientX; clientY = e.changedTouches[0].clientY;
-        } else {
-            clientX = e.clientX; clientY = e.clientY;
-        }
-        let angle = Math.atan2(clientY - centerY, clientX - centerX) * (180 / Math.PI) + 90;
-        if (angle < 0) angle += 360;
-        return angle;
-    }
-
-    function startSpin(e) {
+    // --- Vault Action Button ---
+    window.toggleVaultButton = async function() {
         if(document.getElementById("exp-door-status").innerText.includes("OFFLINE")) return;
         if(!window.isScheduleValid) return; 
         initAudio(); // Initialize audio context on first user gesture
-        isSpinning = true;
-    }
-
-    function doSpin(e) {
-        if (!isSpinning) return;
-        e.preventDefault(); 
-        let angle = calculateAngle(e);
-        let diff = Math.abs(angle - currentAngle);
-        if (diff > 12) {
-            if (navigator.vibrate) navigator.vibrate(10); 
-            playClickSound();
-            currentAngle = angle;
-        }
-        knobContainer.style.transform = `rotate(${angle}deg)`;
         
-        if (angle > 45 && angle < 135) {
-            document.getElementById('dial-label').innerHTML = "Release to UNLOCK<br><span style='font-size:20px;'>🔓</span>";
-            document.getElementById('dial-label').style.color = "#22c55e";
-            targetAction = "UNLOCK";
-        } else if (angle > 225 && angle < 315) {
-            document.getElementById('dial-label').innerHTML = "Release to LOCK<br><span style='font-size:20px;'>🔒</span>";
-            document.getElementById('dial-label').style.color = "#ef4444";
-            targetAction = "LOCK";
-        } else {
-            document.getElementById('dial-label').innerHTML = "Spin to Unlock<br><span style='font-size:9px; font-weight:normal;'>(Right to Unlock, Left to Lock)</span>";
-            document.getElementById('dial-label').style.color = "#cbd5e1";
-            targetAction = null;
-        }
-    }
-
-    async function endSpin(e) {
-        if (!isSpinning) return;
-        isSpinning = false;
-        knobContainer.style.transform = `rotate(0deg)`; 
-        let actionToRun = targetAction;
+        let doorPanel = document.getElementById("exp-door-panel");
+        let isLocked = !doorPanel.classList.contains("open");
         
-        document.getElementById('dial-label').innerHTML = "Spin to Unlock<br><span style='font-size:9px; font-weight:normal;'>(Right to Unlock, Left to Lock)</span>";
-        document.getElementById('dial-label').style.color = "#cbd5e1";
-        targetAction = null;
-
-        if (actionToRun === "UNLOCK") {
+        if (isLocked) {
             await window.userSendUnlock();
-        } else if (actionToRun === "LOCK") {
+        } else {
             await window.userSendLock();
         }
-    }
-
-    dial.addEventListener('mousedown', startSpin);
-    window.addEventListener('mousemove', doSpin, {passive: false});
-    window.addEventListener('mouseup', endSpin);
-    dial.addEventListener('touchstart', startSpin, {passive: false});
-    window.addEventListener('touchmove', doSpin, {passive: false});
-    window.addEventListener('touchend', endSpin);
+    };
   </script>
 
   <!-- MQTT HARDWARE CONNECTION -->
@@ -1122,9 +1045,17 @@
 
             if (isNowLocked) {
                 doorPanel.classList.remove("open");
+                if(document.getElementById("vault-btn-icon")) {
+                    document.getElementById("vault-btn-icon").innerText = "🔒";
+                    document.getElementById("vault-btn-label").innerText = "Tap to Unlock";
+                }
                 if(!wasLocked && window.activeMode === 'experimental') window.playLockSound();
             } else {
                 doorPanel.classList.add("open");
+                if(document.getElementById("vault-btn-icon")) {
+                    document.getElementById("vault-btn-icon").innerText = "🔓";
+                    document.getElementById("vault-btn-label").innerText = "Tap to Lock";
+                }
                 if(wasLocked && window.activeMode === 'experimental') {
                     window.playUnlockSound();
                     window.createParticles();

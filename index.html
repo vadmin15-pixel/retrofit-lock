@@ -173,6 +173,11 @@
     <p style="margin-bottom: 30px;">Select your Interface</p>
     <button class="btn btn-submit" onclick="selectMode('practical')">Standard Mode (Practical)</button>
     <button class="btn btn-restore" onclick="selectMode('experimental')" style="background: linear-gradient(90deg, #8b5cf6, #d946ef);">Spatial UI (Experimental)</button>
+    
+    <div style="margin-top: 25px; color: #94a3b8; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+      <input type="checkbox" id="remember-mode" style="width: 18px; height: 18px; margin: 0; cursor: pointer;" />
+      <label for="remember-mode" style="cursor: pointer;">Remember my choice on this device</label>
+    </div>
   </div>
 
   <!-- SCREEN 4: APPROVED! MAIN CONTROL (PRACTICAL MODE) -->
@@ -184,7 +189,7 @@
     <button id="btnUnlock" class="btn btn-unlock" onclick="userSendUnlock()" disabled>Tap to Unlock (FaceID)</button>
     <button id="btnLock" class="btn btn-lock" onclick="userSendLock()" disabled>Tap to Lock</button>
     
-    <button class="btn" style="background: transparent; color: #94a3b8; font-size: 12px; margin-top: 30px;" onclick="showScreen('screen-mode-select')">Switch Interface</button>
+    <button class="btn" style="background: transparent; color: #94a3b8; font-size: 12px; margin-top: 30px;" onclick="goToModeSelect()">Switch Interface</button>
   </div>
 
   <!-- SCREEN 5: APPROVED! MAIN CONTROL (EXPERIMENTAL / SPATIAL UI) -->
@@ -210,7 +215,7 @@
       <div class="dial-label" id="dial-label">Spin to Unlock<br><span style="font-size:9px; font-weight:normal;">(Right to Unlock, Left to Lock)</span></div>
     </div>
     
-    <button class="btn" style="background: rgba(255,255,255,0.1); color: white; backdrop-filter: blur(5px); font-size: 12px; margin-top: 20px;" onclick="showScreen('screen-mode-select')">Switch Interface</button>
+    <button class="btn" style="background: rgba(255,255,255,0.1); color: white; backdrop-filter: blur(5px); font-size: 12px; margin-top: 20px;" onclick="goToModeSelect()">Switch Interface</button>
   </div>
 
   <!-- SCREEN ADMIN DASHBOARD -->
@@ -353,7 +358,6 @@
       if (!name) return alert("Enter your name!");
       myName = name;
       localStorage.setItem('tulsi_my_name', name);
-      // requireBiometrics defaults to true for new requests
       await setDoc(doc(db, "requests", deviceId), { name: name, device: deviceName, status: "pending", expiresAt: 0, unlocksRemaining: -1, requireBiometrics: true });
       listenToMyStatus();
     };
@@ -374,7 +378,6 @@
         
         currentUserData = docSnap.data();
         
-        // Dynamically update UI button text based on biometric status
         if (currentUserData.requireBiometrics === false) {
            document.getElementById('btnUnlock').innerText = "Tap to Unlock";
         } else {
@@ -385,8 +388,16 @@
           showScreen('screen-pending');
         } 
         else if (["perm", "temp", "sched"].includes(currentUserData.status)) {
+          
           if (!activeMode) {
-             showScreen('screen-mode-select');
+             let savedMode = localStorage.getItem('tulsi_preferred_mode');
+             if (savedMode) {
+                 document.getElementById('remember-mode').checked = true;
+                 window.selectMode(savedMode);
+             } else {
+                 document.getElementById('remember-mode').checked = false;
+                 showScreen('screen-mode-select');
+             }
              connectMQTT();
           } else if (activeMode === 'practical') {
              showScreen('screen-control');
@@ -396,6 +407,13 @@
         }
       });
     }
+
+    window.goToModeSelect = function() {
+        activeMode = null; 
+        showScreen('screen-mode-select');
+        let savedMode = localStorage.getItem('tulsi_preferred_mode');
+        document.getElementById('remember-mode').checked = (savedMode !== null);
+    };
 
     // SPATIAL UI GYROSCOPE LOGIC
     function handleGyro(e) {
@@ -422,6 +440,14 @@
 
     window.selectMode = function(mode) {
         activeMode = mode;
+        
+        // Save or clear preference based on checkbox
+        if (document.getElementById('remember-mode').checked) {
+            localStorage.setItem('tulsi_preferred_mode', mode);
+        } else {
+            localStorage.removeItem('tulsi_preferred_mode');
+        }
+        
         if (mode === 'practical') {
             showScreen('screen-control');
         } else {
@@ -546,7 +572,6 @@
     };
 
     window.userSendUnlock = async function() {
-      // ONLY trigger biometrics if the user's settings require it (defaults to true)
       if (currentUserData.requireBiometrics !== false) {
         let verified = await window.requireBiometric();
         if (!verified) return; 
@@ -610,8 +635,7 @@
             const req = docSnap.data();
             let badge = req.status === "perm" ? "🟢 Perm" : (req.status === "sched" ? "🟣 Sched" : "🟠 Temp");
             
-            // Determine Biometric Button State
-            let bioStatus = req.requireBiometrics !== false; // defaults to true
+            let bioStatus = req.requireBiometrics !== false; 
             let bioBtnTxt = bioStatus ? "Disable FaceID" : "Enable FaceID";
             let bioBtnCol = bioStatus ? "background: #f59e0b;" : "background: #10b981;";
             
@@ -742,7 +766,7 @@
 
     function startSpin(e) {
         if(document.getElementById("exp-door-status").innerText.includes("OFFLINE")) return;
-        if(!window.isScheduleValid) return; // Block spinning if out of schedule
+        if(!window.isScheduleValid) return; 
         isSpinning = true;
     }
 
@@ -753,7 +777,7 @@
         let diff = Math.abs(angle - currentAngle);
         
         if (diff > 12) {
-            if (navigator.vibrate) navigator.vibrate(10); // Haptic click
+            if (navigator.vibrate) navigator.vibrate(10); 
             currentAngle = angle;
         }
         
@@ -779,7 +803,6 @@
         isSpinning = false;
         knobContainer.style.transform = `rotate(0deg)`; 
         
-        // Save target action because FaceID takes time and user might tap again
         let actionToRun = targetAction;
         
         document.getElementById('dial-label').innerHTML = "Spin to Unlock<br><span style='font-size:9px; font-weight:normal;'>(Right to Unlock, Left to Lock)</span>";
@@ -830,11 +853,9 @@
             let txt = "DOOR: " + state;
             let col = (state === "LOCKED") ? "#ef4444" : "#22c55e";
 
-            // Update Practical UI
             document.getElementById("door-status").innerText = txt;
             document.getElementById("door-status").style.color = col;
             
-            // Update Spatial UI
             document.getElementById("exp-door-status").innerText = txt;
             document.getElementById("exp-door-status").style.color = col;
 

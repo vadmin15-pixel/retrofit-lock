@@ -6,7 +6,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
   
   <style>
-    body { font-family: -apple-system, sans-serif; background: #0f172a; color: white; text-align: center; padding: 20px; }
+    body { font-family: -apple-system, sans-serif; background: #0f172a; color: white; text-align: center; padding: 20px; overflow-x: hidden; }
     .card { background: #1e293b; padding: 25px; border-radius: 20px; max-width: 400px; margin: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.5); display: none; }
     .active { display: block; }
     
@@ -37,6 +37,108 @@
     
     #logs-modal { display: none; position: fixed; top: 10%; left: 50%; transform: translateX(-50%); background: #1e293b; border: 2px solid #0ea5e9; padding: 20px; z-index: 100; border-radius: 15px; max-height: 70vh; overflow-y: auto; width: 80%; max-width: 350px;}
     .log-entry { font-size: 12px; border-bottom: 1px solid #475569; padding: 5px 0; text-align: left;}
+
+    /* ==========================================
+       EXPERIMENTAL / SPATIAL UI STYLES
+       ========================================== */
+    .glass-card {
+        background: rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 25px 45px rgba(0, 0, 0, 0.5);
+        border-radius: 30px;
+        padding: 30px;
+        margin: auto;
+        max-width: 400px;
+        display: none;
+        transform-style: preserve-3d;
+        transition: transform 0.1s ease-out;
+    }
+    
+    .glass-card.active {
+        display: block;
+    }
+
+    /* 3D Digital Twin Door */
+    .door-container {
+        width: 140px;
+        height: 220px;
+        perspective: 1200px;
+        margin: 25px auto;
+    }
+    .door-frame {
+        width: 100%;
+        height: 100%;
+        border: 10px solid #334155;
+        border-bottom: none;
+        position: relative;
+        background: #000;
+        box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+    }
+    .door-panel {
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, #ef4444 0%, #991b1b 100%);
+        transform-origin: left;
+        transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1), background 0.5s;
+        box-shadow: inset -5px 0 15px rgba(0,0,0,0.4);
+    }
+    .door-panel.open {
+        transform: rotateY(-85deg);
+        background: linear-gradient(135deg, #22c55e 0%, #166534 100%);
+    }
+    .door-knob {
+        width: 14px;
+        height: 14px;
+        background: radial-gradient(circle, #fcd34d 0%, #b45309 100%);
+        border-radius: 50%;
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+    }
+
+    /* Haptic Vault Dial */
+    .dial-container {
+        width: 160px;
+        height: 160px;
+        border-radius: 50%;
+        background: rgba(15, 23, 42, 0.6);
+        margin: 30px auto;
+        position: relative;
+        border: 6px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        touch-action: none;
+        box-shadow: inset 0 0 20px rgba(0,0,0,0.5), 0 0 15px rgba(0,0,0,0.2);
+    }
+    .dial-knob-container {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+    }
+    .dial-knob {
+        width: 34px;
+        height: 34px;
+        background: #0ea5e9;
+        border-radius: 50%;
+        position: absolute;
+        top: -17px;
+        left: 50%;
+        transform: translateX(-50%);
+        box-shadow: 0 0 15px #0ea5e9, inset 0 0 5px rgba(255,255,255,0.8);
+        border: 2px solid #38bdf8;
+    }
+    .dial-label {
+        font-size: 13px;
+        color: #94a3b8;
+        pointer-events: none;
+        font-weight: bold;
+        text-shadow: 0 2px 5px rgba(0,0,0,0.8);
+    }
   </style>
 </head>
 <body>
@@ -65,7 +167,15 @@
     <p style="color: #94a3b8;">Waiting for Admin to approve your device...</p>
   </div>
 
-  <!-- SCREEN 4: APPROVED! MAIN CONTROL -->
+  <!-- SCREEN MODE SELECT (NEW) -->
+  <div id="screen-mode-select" class="card">
+    <h1>TULSI</h1>
+    <p style="margin-bottom: 30px;">Select your Interface</p>
+    <button class="btn btn-submit" onclick="selectMode('practical')">Standard Mode (Practical)</button>
+    <button class="btn btn-restore" onclick="selectMode('experimental')" style="background: linear-gradient(90deg, #8b5cf6, #d946ef);">Spatial UI (Experimental)</button>
+  </div>
+
+  <!-- SCREEN 4: APPROVED! MAIN CONTROL (PRACTICAL MODE) -->
   <div id="screen-control" class="card">
     <h1>TULSI</h1>
     <div id="door-status">DOOR: Checking...</div>
@@ -73,9 +183,37 @@
     
     <button id="btnUnlock" class="btn btn-unlock" onclick="userSendUnlock()" disabled>Tap to Unlock (FaceID)</button>
     <button id="btnLock" class="btn btn-lock" onclick="userSendLock()" disabled>Tap to Lock</button>
+    
+    <button class="btn" style="background: transparent; color: #94a3b8; font-size: 12px; margin-top: 30px;" onclick="showScreen('screen-mode-select')">Switch Interface</button>
   </div>
 
-  <!-- SCREEN 5: ADMIN DASHBOARD -->
+  <!-- SCREEN 5: APPROVED! MAIN CONTROL (EXPERIMENTAL / SPATIAL UI) -->
+  <div id="screen-experimental" class="glass-card">
+    <h1 style="text-shadow: 0 0 15px rgba(250, 204, 21, 0.5); font-size: 32px;">TULSI SPATIAL</h1>
+    <div id="exp-door-status" style="font-size: 18px; font-weight: bold; margin-bottom: 10px; color: #e2e8f0; text-shadow: 0 2px 5px rgba(0,0,0,0.5);">DOOR: Checking...</div>
+    <div id="exp-access-type" style="color: #fcd34d; margin-bottom: 10px; font-size: 12px; text-shadow: 0 1px 3px rgba(0,0,0,0.5);"></div>
+
+    <!-- 3D Digital Twin Door -->
+    <div class="door-container">
+      <div class="door-frame">
+        <div class="door-panel" id="exp-door-panel">
+          <div class="door-knob"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Haptic Vault Dial -->
+    <div class="dial-container" id="vault-dial">
+      <div class="dial-knob-container" id="dial-knob-container">
+        <div class="dial-knob"></div>
+      </div>
+      <div class="dial-label" id="dial-label">Spin to Unlock<br><span style="font-size:9px; font-weight:normal;">(Right to Unlock, Left to Lock)</span></div>
+    </div>
+    
+    <button class="btn" style="background: rgba(255,255,255,0.1); color: white; backdrop-filter: blur(5px); font-size: 12px; margin-top: 20px;" onclick="showScreen('screen-mode-select')">Switch Interface</button>
+  </div>
+
+  <!-- SCREEN ADMIN DASHBOARD -->
   <div id="screen-admin" class="card" style="border: 2px solid #3b82f6;">
     <h2 style="color: #3b82f6; margin-bottom: 5px;">Admin Dashboard</h2>
     <div id="admin-lockdown-status" style="color: #facc15; font-size: 12px; margin-bottom: 15px;">Web Access: NORMAL</div>
@@ -108,7 +246,7 @@
     <button class="btn btn-logout" onclick="window.location.reload()">Exit Admin</button>
   </div>
 
-  <!-- SCREEN 6: ONE-TIME LINK (AIRBNB MODE) -->
+  <!-- SCREEN ONE-TIME LINK (AIRBNB MODE) -->
   <div id="screen-otp" class="card">
     <h1>TULSI</h1>
     <h2 style="color: #0ea5e9;">Guest Access</h2>
@@ -147,11 +285,20 @@
     let myName = localStorage.getItem('tulsi_my_name') || "Unknown User";
     let currentUserData = null;
     window.isScheduleValid = true;
+    let activeMode = null;
 
-    function showScreen(screenId) {
-      document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
+    window.showScreen = function(screenId) {
+      document.querySelectorAll('.card, .glass-card').forEach(c => c.classList.remove('active'));
       document.getElementById(screenId).classList.add('active');
-    }
+    };
+
+    // Quality of Life: Enter Key Support for Laptop Users
+    document.getElementById("invite-code").addEventListener("keyup", function(event) {
+       if (event.key === "Enter") checkInviteCode();
+    });
+    document.getElementById("user-name").addEventListener("keyup", function(event) {
+       if (event.key === "Enter") submitRequest();
+    });
 
     const urlParams = new URLSearchParams(window.location.search);
     const otpCode = urlParams.get('otp');
@@ -214,8 +361,13 @@
     function listenToMyStatus() {
       onSnapshot(doc(db, "requests", deviceId), (docSnap) => {
         if (!docSnap.exists()) {
-          if (document.getElementById('screen-control').classList.contains('active') || document.getElementById('screen-pending').classList.contains('active')) {
+          // If revoked, send them back to start
+          if (document.getElementById('screen-control').classList.contains('active') || 
+              document.getElementById('screen-experimental').classList.contains('active') || 
+              document.getElementById('screen-mode-select').classList.contains('active') || 
+              document.getElementById('screen-pending').classList.contains('active')) {
             alert("Your access has been revoked or expired.");
+            activeMode = null;
             showScreen('screen-join');
           }
           return;
@@ -226,14 +378,55 @@
           showScreen('screen-pending');
         } 
         else if (["perm", "temp", "sched"].includes(currentUserData.status)) {
-          showScreen('screen-control');
-          connectMQTT();
+          if (!activeMode) {
+             showScreen('screen-mode-select');
+             connectMQTT();
+          } else if (activeMode === 'practical') {
+             showScreen('screen-control');
+          } else if (activeMode === 'experimental') {
+             showScreen('screen-experimental');
+          }
         }
       });
     }
 
+    // SPATIAL UI GYROSCOPE LOGIC
+    function handleGyro(e) {
+       if (activeMode !== 'experimental') return;
+       const x = e.gamma ? e.gamma / 2 : 0; 
+       const y = e.beta ? (e.beta - 45) / 2 : 0; 
+       const expScreen = document.getElementById('screen-experimental');
+       if (expScreen.classList.contains('active')) {
+           expScreen.style.transform = `rotateY(${x}deg) rotateX(${-y}deg)`;
+       }
+    }
+
+    window.requestGyro = function() {
+       if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+           DeviceOrientationEvent.requestPermission()
+               .then(permissionState => {
+                   if (permissionState === 'granted') window.addEventListener('deviceorientation', handleGyro);
+               })
+               .catch(console.error);
+       } else {
+           window.addEventListener('deviceorientation', handleGyro);
+       }
+    };
+
+    window.selectMode = function(mode) {
+        activeMode = mode;
+        if (mode === 'practical') {
+            showScreen('screen-control');
+        } else {
+            showScreen('screen-experimental');
+            requestGyro(); // Ask iOS gyro permission if needed
+        }
+    };
+
     setInterval(() => {
       if (!currentUserData) return;
+      
+      let accessText = "";
       
       if (currentUserData.status === "temp") {
         window.isScheduleValid = true;
@@ -242,9 +435,9 @@
           if (diff <= 0) { deleteDoc(doc(db, "requests", deviceId)); return; }
           let hrs = Math.floor(diff / 3600000);
           let mins = Math.floor((diff % 3600000) / 60000);
-          document.getElementById("access-type").innerText = `Guest Access: ${hrs}h ${mins}m remaining`;
+          accessText = `Guest Access: ${hrs}h ${mins}m remaining`;
         } else if (currentUserData.unlocksRemaining >= 0) {
-          document.getElementById("access-type").innerText = `Guest Access: ${currentUserData.unlocksRemaining} unlocks remaining`;
+          accessText = `Guest Access: ${currentUserData.unlocksRemaining} unlocks remaining`;
         }
       } 
       else if (currentUserData.status === "sched") {
@@ -257,10 +450,11 @@
         window.isScheduleValid = (isValidDay && isValidHour);
         
         if (window.isScheduleValid) {
-          document.getElementById("access-type").innerText = `Scheduled Access Active (Ends at ${currentUserData.schedEnd}:00)`;
+          accessText = `Scheduled Access Active (Ends at ${currentUserData.schedEnd}:00)`;
         } else {
-          document.getElementById("access-type").innerText = `Outside Schedule. Allowed Days: ${currentUserData.schedDays.join(',')} (${currentUserData.schedStart}:00 - ${currentUserData.schedEnd}:00)`;
+          accessText = `Outside Schedule. Allowed: Day ${currentUserData.schedDays.join(',')} (${currentUserData.schedStart}:00 - ${currentUserData.schedEnd}:00)`;
         }
+        
         if(document.getElementById("door-status").innerText.includes("OFFLINE")) {
            document.getElementById("btnUnlock").disabled = true;
         } else {
@@ -269,8 +463,12 @@
       } 
       else if (currentUserData.status === "perm") {
         window.isScheduleValid = true;
-        document.getElementById("access-type").innerText = "Permanent Resident Access";
+        accessText = "Permanent Resident Access";
       }
+
+      document.getElementById("access-type").innerText = accessText;
+      document.getElementById("exp-access-type").innerText = accessText;
+
     }, 1000);
 
     window.logActionToDB = async function(action) {
@@ -292,14 +490,11 @@
     }
 
     window.requireBiometric = async function() {
-      // Security Check: Biometrics require HTTPS and Browser Support
       if (!window.PublicKeyCredential || window.location.hostname === "" || window.location.hostname === "localhost") {
          return prompt("Biometrics not supported locally or on this browser. Enter PIN (104104) to unlock:") === "104104";
       }
-
       const challenge = new Uint8Array(32);
       window.crypto.getRandomValues(challenge);
-
       let credentialId = localStorage.getItem("tulsi_passkey_id");
 
       if (!credentialId) {
@@ -307,7 +502,6 @@
            alert("First time setup: We will now link this device's FaceID/Fingerprint for secure access.");
            const userId = new Uint8Array(16);
            window.crypto.getRandomValues(userId);
-           
            const cred = await navigator.credentials.create({
              publicKey: {
                challenge: challenge,
@@ -318,17 +512,15 @@
                timeout: 60000
              }
            });
-           
            localStorage.setItem("tulsi_passkey_id", bufferToBase64(cred.rawId));
            return true;
          } catch(err) {
-           console.error(err);
            return prompt("Biometric setup cancelled. Enter fallback PIN:") === "104104";
          }
       } else {
          try {
            const rawId = base64ToBuffer(credentialId);
-           const assertion = await navigator.credentials.get({
+           await navigator.credentials.get({
              publicKey: {
                challenge: challenge,
                rpId: window.location.hostname,
@@ -339,31 +531,22 @@
            });
            return true; 
          } catch(err) {
-           console.error(err);
-           if (err.name === 'NotAllowedError') {
-              alert("Biometric verification failed.");
-           } else {
-              localStorage.removeItem("tulsi_passkey_id");
-              alert("Passkey error. Try again to re-register.");
-           }
+           if (err.name === 'NotAllowedError') alert("Biometric verification failed.");
+           else { localStorage.removeItem("tulsi_passkey_id"); alert("Passkey error. Try again to re-register."); }
            return false;
          }
       }
     };
 
     window.userSendUnlock = async function() {
-      // 1. Verify Biometrics First!
       let verified = await window.requireBiometric();
-      if (!verified) return; // Stop if failed or cancelled
+      if (!verified) return; 
 
-      // 2. Reduce Temp Access Count (if applicable)
       if (currentUserData.status === "temp" && currentUserData.unlocksRemaining > 0) {
         let newCount = currentUserData.unlocksRemaining - 1;
         await updateDoc(doc(db, "requests", deviceId), { unlocksRemaining: newCount });
         if (newCount <= 0) setTimeout(() => deleteDoc(doc(db, "requests", deviceId)), 3000);
       }
-      
-      // 3. Send Command
       sendMQTT('UNLOCK');
       logActionToDB('UNLOCKED');
     };
@@ -502,7 +685,97 @@
     document.addEventListener('keydown', (e) => {
       if (e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a')) { if (prompt("Admin PIN:") === "112233") { loadAdminDashboard(); connectMQTT(); } }
     });
+  </script>
 
+  <!-- SPATIAL HAPTIC DIAL LOGIC -->
+  <script>
+    const dial = document.getElementById('vault-dial');
+    const knobContainer = document.getElementById('dial-knob-container');
+    let isSpinning = false;
+    let currentAngle = 0;
+    let targetAction = null; 
+
+    function calculateAngle(e) {
+        const rect = dial.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        let clientX, clientY;
+        if (e.touches && e.touches.length > 0) {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else if (e.changedTouches && e.changedTouches.length > 0) {
+            clientX = e.changedTouches[0].clientX;
+            clientY = e.changedTouches[0].clientY;
+        } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
+        }
+        const dx = clientX - centerX;
+        const dy = clientY - centerY;
+        let angle = Math.atan2(dy, dx) * (180 / Math.PI) + 90;
+        if (angle < 0) angle += 360;
+        return angle;
+    }
+
+    function startSpin(e) {
+        if(document.getElementById("exp-door-status").innerText.includes("OFFLINE")) return;
+        if(!window.isScheduleValid) return; // Block spinning if out of schedule
+        isSpinning = true;
+    }
+
+    function doSpin(e) {
+        if (!isSpinning) return;
+        e.preventDefault(); 
+        let angle = calculateAngle(e);
+        let diff = Math.abs(angle - currentAngle);
+        
+        if (diff > 12) {
+            if (navigator.vibrate) navigator.vibrate(10); // Haptic click
+            currentAngle = angle;
+        }
+        
+        knobContainer.style.transform = `rotate(${angle}deg)`;
+        
+        if (angle > 45 && angle < 135) {
+            document.getElementById('dial-label').innerHTML = "Release to UNLOCK<br><span style='font-size:20px;'>🔓</span>";
+            document.getElementById('dial-label').style.color = "#22c55e";
+            targetAction = "UNLOCK";
+        } else if (angle > 225 && angle < 315) {
+            document.getElementById('dial-label').innerHTML = "Release to LOCK<br><span style='font-size:20px;'>🔒</span>";
+            document.getElementById('dial-label').style.color = "#ef4444";
+            targetAction = "LOCK";
+        } else {
+            document.getElementById('dial-label').innerHTML = "Spin to Unlock<br><span style='font-size:9px; font-weight:normal;'>(Right to Unlock, Left to Lock)</span>";
+            document.getElementById('dial-label').style.color = "#94a3b8";
+            targetAction = null;
+        }
+    }
+
+    async function endSpin(e) {
+        if (!isSpinning) return;
+        isSpinning = false;
+        knobContainer.style.transform = `rotate(0deg)`; 
+        
+        // Save target action because FaceID takes time and user might tap again
+        let actionToRun = targetAction;
+        
+        document.getElementById('dial-label').innerHTML = "Spin to Unlock<br><span style='font-size:9px; font-weight:normal;'>(Right to Unlock, Left to Lock)</span>";
+        document.getElementById('dial-label').style.color = "#94a3b8";
+        targetAction = null;
+
+        if (actionToRun === "UNLOCK") {
+            await window.userSendUnlock();
+        } else if (actionToRun === "LOCK") {
+            await window.userSendLock();
+        }
+    }
+
+    dial.addEventListener('mousedown', startSpin);
+    window.addEventListener('mousemove', doSpin, {passive: false});
+    window.addEventListener('mouseup', endSpin);
+    dial.addEventListener('touchstart', startSpin, {passive: false});
+    window.addEventListener('touchmove', doSpin, {passive: false});
+    window.addEventListener('touchend', endSpin);
   </script>
 
   <!-- MQTT HARDWARE CONNECTION -->
@@ -513,7 +786,6 @@
       var broker = "broker.hivemq.com";
       var port = 8884; 
       
-      // CRITICAL SECURITY FIX: Changed the command topic to v2 to clear any old ghost commands
       var topic_command = "my_awesome_room/door_lock/cmd_v2";
       var topic_state = "my_awesome_room/door_lock/state";
       var topic_admin = "my_awesome_room/door_lock/admin_state";
@@ -521,15 +793,36 @@
       mqttClient = new Paho.MQTT.Client(broker, port, "WebApp-" + Math.floor(Math.random() * 10000));
       mqttClient.onMessageArrived = function(message) {
         var state = message.payloadString;
+        
         if (message.destinationName === topic_state) {
           if (state === "OFFLINE") {
-            document.getElementById("door-status").innerText = "DOOR: OFFLINE (Disconnected)";
+            document.getElementById("door-status").innerText = "DOOR: OFFLINE";
             document.getElementById("door-status").style.color = "#94a3b8";
+            document.getElementById("exp-door-status").innerText = "DOOR: OFFLINE";
+            document.getElementById("exp-door-status").style.color = "#94a3b8";
+            
             document.getElementById("btnUnlock").disabled = true;
             document.getElementById("btnLock").disabled = true;
           } else {
-            document.getElementById("door-status").innerText = "DOOR: " + state;
-            document.getElementById("door-status").style.color = (state === "LOCKED") ? "#ef4444" : "#22c55e";
+            let txt = "DOOR: " + state;
+            let col = (state === "LOCKED") ? "#ef4444" : "#22c55e";
+
+            // Update Practical UI
+            document.getElementById("door-status").innerText = txt;
+            document.getElementById("door-status").style.color = col;
+            
+            // Update Spatial UI
+            document.getElementById("exp-door-status").innerText = txt;
+            document.getElementById("exp-door-status").style.color = col;
+
+            const doorPanel = document.getElementById("exp-door-panel");
+            if (state === "LOCKED") {
+                doorPanel.classList.remove("open");
+                doorPanel.style.background = "linear-gradient(135deg, #ef4444 0%, #991b1b 100%)";
+            } else {
+                doorPanel.classList.add("open");
+                doorPanel.style.background = "linear-gradient(135deg, #22c55e 0%, #166534 100%)";
+            }
             
             if(window.isScheduleValid) {
                document.getElementById("btnUnlock").disabled = false;
@@ -552,6 +845,7 @@
         useSSL: true,
         onSuccess: function() {
           document.getElementById("door-status").innerText = "Checking hardware status...";
+          document.getElementById("exp-door-status").innerText = "Checking hardware status...";
           mqttClient.subscribe(topic_state);
           mqttClient.subscribe(topic_admin);
         }

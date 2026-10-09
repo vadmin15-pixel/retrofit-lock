@@ -1,0 +1,16 @@
+{
+  "name": "TULSI Smart Lock",
+  "short_name": "TULSI",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#1e2024",
+  "theme_color": "#ff5e00",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

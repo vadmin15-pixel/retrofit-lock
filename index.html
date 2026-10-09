@@ -3,6 +3,12 @@
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
   <title>TULSI Smart Lock</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1e2024">
+  <link rel="apple-touch-icon" href="icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="TULSI">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
   
   <style>
@@ -1222,6 +1228,11 @@
       var message = new Paho.MQTT.Message(cmd);
       message.destinationName = "my_awesome_room/door_lock/cmd_v2";
       mqttClient.send(message);
+    }
+    
+    // Register PWA Service Worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(console.error);
     }
   </script>
 </body>

@@ -167,7 +167,7 @@
     <p style="color: #94a3b8;">Waiting for Admin to approve your device...</p>
   </div>
 
-  <!-- SCREEN MODE SELECT (NEW) -->
+  <!-- SCREEN MODE SELECT -->
   <div id="screen-mode-select" class="card">
     <h1>TULSI</h1>
     <p style="margin-bottom: 30px;">Select your Interface</p>
@@ -214,7 +214,7 @@
   </div>
 
   <!-- SCREEN ADMIN DASHBOARD -->
-  <div id="screen-admin" class="card" style="border: 2px solid #3b82f6;">
+  <div id="screen-admin" class="card" style="border: 2px solid #3b82f6; max-width: 450px;">
     <h2 style="color: #3b82f6; margin-bottom: 5px;">Admin Dashboard</h2>
     <div id="admin-lockdown-status" style="color: #facc15; font-size: 12px; margin-bottom: 15px;">Web Access: NORMAL</div>
     
@@ -292,7 +292,6 @@
       document.getElementById(screenId).classList.add('active');
     };
 
-    // Quality of Life: Enter Key Support for Laptop Users
     document.getElementById("invite-code").addEventListener("keyup", function(event) {
        if (event.key === "Enter") checkInviteCode();
     });
@@ -354,14 +353,14 @@
       if (!name) return alert("Enter your name!");
       myName = name;
       localStorage.setItem('tulsi_my_name', name);
-      await setDoc(doc(db, "requests", deviceId), { name: name, device: deviceName, status: "pending", expiresAt: 0, unlocksRemaining: -1 });
+      // requireBiometrics defaults to true for new requests
+      await setDoc(doc(db, "requests", deviceId), { name: name, device: deviceName, status: "pending", expiresAt: 0, unlocksRemaining: -1, requireBiometrics: true });
       listenToMyStatus();
     };
 
     function listenToMyStatus() {
       onSnapshot(doc(db, "requests", deviceId), (docSnap) => {
         if (!docSnap.exists()) {
-          // If revoked, send them back to start
           if (document.getElementById('screen-control').classList.contains('active') || 
               document.getElementById('screen-experimental').classList.contains('active') || 
               document.getElementById('screen-mode-select').classList.contains('active') || 
@@ -374,6 +373,14 @@
         }
         
         currentUserData = docSnap.data();
+        
+        // Dynamically update UI button text based on biometric status
+        if (currentUserData.requireBiometrics === false) {
+           document.getElementById('btnUnlock').innerText = "Tap to Unlock";
+        } else {
+           document.getElementById('btnUnlock').innerText = "Tap to Unlock (FaceID)";
+        }
+
         if (currentUserData.status === "pending") {
           showScreen('screen-pending');
         } 
@@ -419,7 +426,7 @@
             showScreen('screen-control');
         } else {
             showScreen('screen-experimental');
-            requestGyro(); // Ask iOS gyro permission if needed
+            requestGyro(); 
         }
     };
 
@@ -539,8 +546,11 @@
     };
 
     window.userSendUnlock = async function() {
-      let verified = await window.requireBiometric();
-      if (!verified) return; 
+      // ONLY trigger biometrics if the user's settings require it (defaults to true)
+      if (currentUserData.requireBiometrics !== false) {
+        let verified = await window.requireBiometric();
+        if (!verified) return; 
+      }
 
       if (currentUserData.status === "temp" && currentUserData.unlocksRemaining > 0) {
         let newCount = currentUserData.unlocksRemaining - 1;
@@ -599,15 +609,28 @@
           querySnapshot.forEach((docSnap) => {
             const req = docSnap.data();
             let badge = req.status === "perm" ? "🟢 Perm" : (req.status === "sched" ? "🟣 Sched" : "🟠 Temp");
+            
+            // Determine Biometric Button State
+            let bioStatus = req.requireBiometrics !== false; // defaults to true
+            let bioBtnTxt = bioStatus ? "Disable FaceID" : "Enable FaceID";
+            let bioBtnCol = bioStatus ? "background: #f59e0b;" : "background: #10b981;";
+            
             list.innerHTML += `
               <div class="list-box">
                 <h3>${badge} | 👤 ${req.name}</h3>
-                <button class="btn-small btn-deny" onclick="denyReq('${docSnap.id}')">Remove Access</button>
-                <button class="btn-small btn-logs" onclick="viewLogs('${docSnap.id}', '${req.name}')">View Logs</button>
+                <div style="margin-bottom: 8px;">
+                  <button class="btn-small btn-deny" onclick="denyReq('${docSnap.id}')">Remove Access</button>
+                  <button class="btn-small btn-logs" onclick="viewLogs('${docSnap.id}', '${req.name}')">View Logs</button>
+                </div>
+                <button class="btn-small" style="${bioBtnCol} width:100%;" onclick="toggleBiometrics('${docSnap.id}', ${bioStatus})">${bioBtnTxt}</button>
               </div>`;
           });
         }
       });
+    };
+
+    window.toggleBiometrics = async function(id, currentState) {
+       await updateDoc(doc(db, "requests", id), { requireBiometrics: !currentState });
     };
 
     window.saveAutoLock = async function() {
@@ -646,7 +669,7 @@
       await updateDoc(doc(db, "requests", id), { status: "sched", schedDays: daysArr, schedStart: parseInt(start), schedEnd: parseInt(end) });
     };
 
-    window.approveReq = async function(id, type) { await updateDoc(doc(db, "requests", id), { status: type }); };
+    window.approveReq = async function(id, type) { await updateDoc(doc(db, "requests", id), { status: type, requireBiometrics: true }); };
     window.denyReq = async function(id) { if(confirm("Are you sure?")) await deleteDoc(doc(db, "requests", id)); };
 
     window.viewLogs = async function(devId, name) {
